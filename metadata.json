@@ -1,0 +1,6 @@
+{
+  "name": "AKHLAQ KU - Pembelajaran PAI & Budi Pekerti Kelas 11 SMA",
+  "description": "Platform pembelajaran interaktif Akhlak & Pendidikan Agama Islam untuk kelas 11 SMA dengan materi PDF/e-book, video tutorial interaktif, dan asesmen pretest-posttest.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
