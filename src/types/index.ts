@@ -122,3 +122,19 @@ export interface StudentProgress {
   ebookRead: boolean;
   notesCount: number;
 }
+
+export type UserRole = 'admin' | 'student';
+
+export interface UserAccount {
+  id: string;
+  username: string;
+  password?: string;
+  fullName: string;
+  role: UserRole;
+  email?: string;
+  nisn?: string;
+  classGrade?: string;
+  school?: string;
+  createdAt: string;
+}
+

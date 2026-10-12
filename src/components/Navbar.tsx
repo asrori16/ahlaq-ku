@@ -1,30 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, FileText, Video, Award, Menu, X, ChevronRight, User } from 'lucide-react';
+import { BookOpen, Menu, X, LogOut, ArrowLeft } from 'lucide-react';
+import { UserRole } from '../types';
 
 interface NavbarProps {
   activeTab: 'chapters' | 'ebook' | 'video' | 'assessment' | 'rapor';
   setActiveTab: (tab: 'chapters' | 'ebook' | 'video' | 'assessment' | 'rapor') => void;
   studentName: string;
   onOpenProfile: () => void;
+  userRole?: UserRole;
+  onLogout?: () => void;
+  onBackToAdmin?: () => void;
 }
 
-const NAV_ITEMS: {
-  key: 'chapters' | 'ebook' | 'video' | 'rapor';
-  label: string;
-  sublabel: string;
-  icon: React.ComponentType<{ className?: string }>;
-}[] = [
-  { key: 'chapters', label: 'Daftar Bab', sublabel: 'Modul & Pembahasan', icon: BookOpen },
-  { key: 'ebook', label: 'Materi & E-Book', sublabel: 'Buku Digital Interaktif', icon: FileText },
-  { key: 'video', label: 'Video', sublabel: 'Video Pembelajaran Interaktif', icon: Video },
-  { key: 'rapor', label: 'Rapor', sublabel: 'Hasil Belajar & Sertifikat', icon: Award },
-];
+const NAV_ITEMS = [
+  { key: 'chapters', label: 'Daftar Bab' },
+  { key: 'ebook', label: 'Materi & E-Book' },
+  { key: 'video', label: 'Video' },
+  { key: 'rapor', label: 'Rapor' },
+] as const;
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
   studentName,
   onOpenProfile,
+  userRole,
+  onLogout,
+  onBackToAdmin,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -50,11 +52,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
   }, []);
 
-  const currentTabItem = NAV_ITEMS.find(item => item.key === activeTab);
+  const currentTabItem = NAV_ITEMS.find((item) => item.key === activeTab);
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
+      <header className="sticky top-0 z-40 bg-white border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Zone 1: Brand wordmark & Current page pill */}
@@ -67,7 +69,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="flex items-center gap-2.5 text-left group cursor-pointer"
                 title="Beranda AKHLAQ KU"
               >
-                <div className="w-8 h-8 rounded-lg bg-emerald-800 text-white flex items-center justify-center font-bold text-sm shadow-xs transition-transform group-hover:scale-105">
+                <div className="w-8 h-8 rounded-lg bg-emerald-800 text-white flex items-center justify-center font-bold text-sm">
                   <BookOpen className="w-4 h-4" />
                 </div>
                 <div>
@@ -80,9 +82,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               </button>
 
-              {/* Mobile Active Tab Chip (shows when navbar is minimized) */}
+              {/* Mobile Active Tab Text (Plain text indicator) */}
               {currentTabItem && (
-                <span className="md:hidden inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60 max-w-[110px] truncate">
+                <span className="md:hidden text-xs font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 max-w-[110px] truncate">
                   {currentTabItem.label}
                 </span>
               )}
@@ -108,13 +110,25 @@ export const Navbar: React.FC<NavbarProps> = ({
               })}
             </nav>
 
-            {/* Zone 3: Actions & Mobile Hamburger Toggle */}
+            {/* Zone 3: Actions & Mobile Hamburger/Silang Toggle Button */}
             <div className="flex items-center gap-2 sm:gap-3">
-              {/* Student profile button */}
+              {/* Button Kembali ke Admin (jika role admin sedang preview siswa) */}
+              {userRole === 'admin' && onBackToAdmin && (
+                <button
+                  onClick={onBackToAdmin}
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg transition-colors cursor-pointer"
+                  title="Kembali ke Panel Guru / Admin"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Panel Admin</span>
+                </button>
+              )}
+
+              {/* Student/User profile button */}
               <button
                 onClick={onOpenProfile}
-                className="inline-flex items-center gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl shadow-xs transition-colors cursor-pointer"
-                title={`Profil Siswa: ${studentName}`}
+                className="inline-flex items-center gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                title={`Profil Pengguna: ${studentName}`}
               >
                 <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-semibold text-xs">
                   {studentName.charAt(0).toUpperCase()}
@@ -122,43 +136,62 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="hidden sm:inline max-w-[120px] sm:max-w-[140px] truncate">{studentName}</span>
               </button>
 
-              {/* Mobile Minimize/Expand Hamburger Toggle Button */}
+              {/* Logout Button (Desktop) */}
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                  title="Keluar / Logout"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Keluar</span>
+                </button>
+              )}
+
+              {/* Mobile Minimize/Expand Toggle Button (Icon Hamburger & Silang) */}
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen((prev) => !prev)}
-                className={`md:hidden inline-flex items-center justify-center p-2 rounded-xl border transition-all cursor-pointer ${
+                className={`md:hidden inline-flex items-center justify-center p-2 rounded-lg border transition-colors cursor-pointer ${
                   isMobileMenuOpen
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-900 shadow-xs ring-2 ring-emerald-500/20'
-                    : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                    : 'bg-white hover:bg-slate-50 border-slate-300 text-slate-700'
                 }`}
                 aria-expanded={isMobileMenuOpen}
-                aria-label={isMobileMenuOpen ? 'Tutup menu navigasi (minimize)' : 'Buka menu navigasi'}
+                aria-label={isMobileMenuOpen ? 'Tutup menu navigasi' : 'Buka menu navigasi'}
               >
                 {isMobileMenuOpen ? (
                   <X className="w-5 h-5 text-emerald-800" />
                 ) : (
-                  <Menu className="w-5 h-5" />
+                  <Menu className="w-5 h-5 text-slate-700" />
                 )}
               </button>
             </div>
           </div>
 
-          {/* Zone 4: Mobile Minimized/Expandable Drawer */}
+          {/* Zone 4: Mobile Minimized Plain Text Drawer (No icons, no gradients) */}
           <div
-            className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
+            className={`md:hidden overflow-hidden transition-all duration-200 ease-in-out ${
               isMobileMenuOpen
-                ? 'max-h-96 opacity-100 border-t border-slate-100 py-3'
+                ? 'max-h-96 opacity-100 border-t border-slate-200 py-2'
                 : 'max-h-0 opacity-0 pointer-events-none'
             }`}
           >
-            <div className="space-y-1">
-              <div className="px-1 pb-1 flex items-center justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                <span>Menu Navigasi</span>
-                <span className="text-[10px] text-emerald-700 font-normal">Pilih modul</span>
-              </div>
+            <div className="flex flex-col space-y-1">
+              {/* Back to admin button on mobile if admin */}
+              {userRole === 'admin' && onBackToAdmin && (
+                <button
+                  onClick={() => {
+                    onBackToAdmin();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm bg-emerald-100 text-emerald-900 font-bold transition-colors cursor-pointer mb-1"
+                >
+                  Kembali ke Panel Admin
+                </button>
+              )}
 
               {NAV_ITEMS.map((item) => {
-                const Icon = item.icon;
                 const isActive = activeTab === item.key;
                 return (
                   <button
@@ -167,60 +200,44 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setActiveTab(item.key);
                       setIsMobileMenuOpen(false);
                     }}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-colors cursor-pointer text-left ${
+                    className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors cursor-pointer ${
                       isActive
-                        ? 'bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200/70 shadow-xs'
-                        : 'text-slate-700 hover:text-slate-900 hover:bg-slate-50'
+                        ? 'bg-emerald-50 text-emerald-800 font-semibold'
+                        : 'text-slate-700 hover:text-slate-900 hover:bg-slate-50 font-normal'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                          isActive
-                            ? 'bg-emerald-800 text-white'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-slate-900 leading-tight">
-                          {item.label}
-                        </div>
-                        <div className="text-[11px] text-slate-500 font-normal">
-                          {item.sublabel}
-                        </div>
-                      </div>
-                    </div>
-                    {isActive ? (
-                      <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-slate-300" />
-                    )}
+                    {item.label}
                   </button>
                 );
               })}
 
-              {/* Student Profile Quick Access within mobile drawer */}
-              <div className="pt-2 mt-2 border-t border-slate-100">
+              {/* Plain text profile button */}
+              <div className="pt-2 mt-1 border-t border-slate-200">
                 <button
                   onClick={() => {
                     onOpenProfile();
                     setIsMobileMenuOpen(false);
                   }}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-700 hover:text-emerald-900 hover:bg-slate-50 transition-colors cursor-pointer"
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-slate-700 hover:text-slate-900 hover:bg-slate-50 font-normal transition-colors cursor-pointer"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[11px]">
-                      {studentName.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="font-medium text-slate-800">{studentName} (Profil)</span>
-                  </div>
-                  <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                    Buka
-                  </span>
+                  Profil Siswa ({studentName})
                 </button>
               </div>
+
+              {/* Logout button in mobile drawer (Plain text, no icons, solid color) */}
+              {onLogout && (
+                <div className="pt-1">
+                  <button
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      onLogout();
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg text-sm text-rose-700 hover:bg-rose-50 font-semibold transition-colors cursor-pointer"
+                  >
+                    Keluar dari Akun (Logout)
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -229,7 +246,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Backdrop overlay for mobile menu */}
       {isMobileMenuOpen && (
         <div
-          className="fixed inset-0 top-16 bg-slate-900/20 backdrop-blur-xs z-30 md:hidden"
+          className="fixed inset-0 top-16 bg-black/20 z-30 md:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
           aria-hidden="true"
         />
@@ -237,4 +254,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     </>
   );
 };
+
+
 

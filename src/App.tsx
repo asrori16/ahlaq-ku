@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CHAPTERS_DATA } from './data/chapters';
-import { Chapter, AssessmentRecord, StudentProgress, Question } from './types';
+import { Chapter, AssessmentRecord, StudentProgress, Question, UserAccount } from './types';
 import { 
   getDefaultStudent, 
   checkSupabaseConnection, 
@@ -9,6 +9,10 @@ import {
   getStudentProgress,
   updateStudentProgress
 } from './services/supabaseService';
+import { getCurrentUser, logoutUser } from './services/authService';
+import { getStoredChapters } from './services/chapterService';
+import { LoginForm } from './components/LoginForm';
+import { AdminDashboard } from './components/AdminDashboard';
 import { Navbar } from './components/Navbar';
 import { HeroBanner } from './components/HeroBanner';
 import { ChapterCard } from './components/ChapterCard';
@@ -23,13 +27,29 @@ import { ReportCardView } from './components/ReportCardView';
 import { BookOpen, Video, Award, Sparkles, Filter } from 'lucide-react';
 
 export default function App() {
-  const [chapters] = useState<Chapter[]>(CHAPTERS_DATA);
-  const [selectedChapter, setSelectedChapter] = useState<Chapter>(CHAPTERS_DATA[0]);
+  // User Authentication
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(getCurrentUser());
+  const [previewAsStudent, setPreviewAsStudent] = useState(false);
+
+  // Dynamic Chapters from chapterService
+  const [chapters, setChapters] = useState<Chapter[]>(getStoredChapters());
+  const [selectedChapter, setSelectedChapter] = useState<Chapter>(chapters[0] || CHAPTERS_DATA[0]);
   const [activeTab, setActiveTab] = useState<'chapters' | 'ebook' | 'video' | 'assessment' | 'rapor'>('chapters');
   const [semesterFilter, setSemesterFilter] = useState<'all' | '1' | '2'>('all');
 
   // Student Profile
-  const [student, setStudent] = useState(getDefaultStudent());
+  const [student, setStudent] = useState(() => {
+    const user = getCurrentUser();
+    if (user && user.role === 'student') {
+      return {
+        name: user.fullName,
+        school: user.school || 'SMA Negeri 1 Jakarta',
+        classGrade: user.classGrade || 'XI MIPA 2',
+        nisn: user.nisn || '0078129341',
+      };
+    }
+    return getDefaultStudent();
+  });
 
   // Assessment Records & Progress Map
   const [assessments, setAssessments] = useState<AssessmentRecord[]>([]);
@@ -167,16 +187,83 @@ export default function App() {
 
   const completedCount = assessments.filter(a => a.passed).length;
 
+  const handleRefreshChapters = () => {
+    const updated = getStoredChapters();
+    setChapters(updated);
+    if (!updated.some(c => c.id === selectedChapter?.id) && updated.length > 0) {
+      setSelectedChapter(updated[0]);
+    }
+  };
+
+  const handleLoginSuccess = (user: UserAccount) => {
+    setCurrentUser(user);
+    setPreviewAsStudent(false);
+    if (user.role === 'student') {
+      setStudent({
+        name: user.fullName,
+        school: user.school || 'SMA Negeri 1 Jakarta',
+        classGrade: user.classGrade || 'XI MIPA 2',
+        nisn: user.nisn || '0078129341',
+      });
+    }
+  };
+
+  const handleLogout = () => {
+    logoutUser();
+    setCurrentUser(null);
+    setPreviewAsStudent(false);
+  };
+
+  // If not logged in, render LoginForm
+  if (!currentUser) {
+    return <LoginForm onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  // If logged in as Admin and not in preview mode, render AdminDashboard
+  if (currentUser.role === 'admin' && !previewAsStudent) {
+    return (
+      <AdminDashboard
+        currentUser={currentUser}
+        chapters={chapters}
+        onRefreshChapters={handleRefreshChapters}
+        assessments={assessments}
+        onLogout={handleLogout}
+        onPreviewAsStudent={() => setPreviewAsStudent(true)}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
-      {/* Top Navbar conforming to Top Bar Contract */}
+      {/* Admin Preview Mode Banner */}
+      {currentUser.role === 'admin' && previewAsStudent && (
+        <div className="bg-emerald-800 text-white px-4 py-2 text-xs font-medium flex items-center justify-between border-b border-emerald-900 shadow-xs z-50">
+          <div className="flex items-center gap-2">
+            <span className="font-bold bg-white text-emerald-900 px-2 py-0.5 rounded text-[10px]">
+              MODE PRATINJAU SISWA
+            </span>
+            <span className="hidden sm:inline">Anda sedang melihat materi dari sudut pandang siswa.</span>
+          </div>
+          <button
+            onClick={() => setPreviewAsStudent(false)}
+            className="bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-md text-xs font-semibold cursor-pointer transition-colors"
+          >
+            Kembali ke Panel Admin &rarr;
+          </button>
+        </div>
+      )}
+
+      {/* Top Navbar */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={(tab) => {
           setActiveTab(tab);
           setPdfChapter(null);
         }}
-        studentName={student.name}
+        studentName={currentUser.role === 'admin' && !previewAsStudent ? currentUser.fullName : student.name}
+        userRole={currentUser.role}
+        onLogout={handleLogout}
+        onBackToAdmin={currentUser.role === 'admin' ? () => setPreviewAsStudent(false) : undefined}
         onOpenProfile={() => setIsProfileOpen(true)}
       />
 
