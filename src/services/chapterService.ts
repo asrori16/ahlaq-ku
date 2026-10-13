@@ -32,6 +32,7 @@ export const saveStoredChapters = (chapters: Chapter[]) => {
 };
 
 export const addChapter = (data: {
+  number?: string;
   title: string;
   shortTitle: string;
   subtitle: string;
@@ -44,11 +45,18 @@ export const addChapter = (data: {
   translation: string;
   objectivesText?: string;
   youtubeId?: string;
+  videoUrl?: string;
+  videoFileName?: string;
+  videoFileKey?: string;
+  videoSourceType?: 'youtube' | 'upload';
+  pdfFileUrl?: string;
+  pdfFileName?: string;
+  pdfFileKey?: string;
   subsectionsContent?: string;
 }): Chapter => {
   const currentChapters = getStoredChapters();
   const nextId = currentChapters.length > 0 ? Math.max(...currentChapters.map((c) => c.id)) + 1 : 1;
-  const nextNumber = nextId < 10 ? `0${nextId}` : `${nextId}`;
+  const nextNumber = data.number?.trim() || (nextId < 10 ? `0${nextId}` : `${nextId}`);
 
   // Parse objectives
   const objectives = data.objectivesText
@@ -91,6 +99,9 @@ export const addChapter = (data: {
       transliteration: data.transliteration.trim() || "Yā ayyuhan-nāsu innā khalaqnākum min dzakariw wa unṡā",
       translation: data.translation.trim() || "Wahai manusia! Sungguh, Kami telah menciptakan kamu dari seorang laki-laki dan seorang perempuan.",
     },
+    pdfFileName: data.pdfFileName,
+    pdfFileUrl: data.pdfFileUrl,
+    pdfFileKey: data.pdfFileKey,
     ebookPages: [
       {
         pageNumber: 1,
@@ -124,6 +135,10 @@ export const addChapter = (data: {
     videoTutorial: {
       title: `Video Pembelajaran Interaktif: ${data.title}`,
       youtubeId: data.youtubeId?.trim() || 'qC03y3jV3pE',
+      videoUrl: data.videoUrl,
+      videoFileName: data.videoFileName,
+      videoFileKey: data.videoFileKey,
+      videoSourceType: data.videoSourceType || (data.videoUrl ? 'upload' : 'youtube'),
       durationSeconds: (data.durationMinutes || 45) * 60,
       description: data.description,
       checkpoints: [
@@ -215,7 +230,15 @@ export const updateChapter = (
   const index = current.findIndex((c) => c.id === id);
   if (index === -1) return false;
 
-  current[index] = { ...current[index], ...data };
+  const existing = current[index];
+  current[index] = {
+    ...existing,
+    ...data,
+    number: data.number !== undefined ? data.number.trim() : existing.number,
+    videoTutorial: data.videoTutorial
+      ? { ...existing.videoTutorial, ...data.videoTutorial }
+      : existing.videoTutorial,
+  };
   saveStoredChapters(current);
 
   // Sync update to Supabase in background

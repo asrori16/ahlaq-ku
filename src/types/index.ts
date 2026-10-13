@@ -49,6 +49,9 @@ export interface Chapter {
       practicalTips?: string[];
     }[];
   }[];
+  pdfFileName?: string;
+  pdfFileUrl?: string;
+  pdfFileKey?: string;
   pdfContent: {
     moduleTitle: string;
     author: string;
@@ -63,7 +66,11 @@ export interface Chapter {
   };
   videoTutorial: {
     title: string;
-    youtubeId: string; // valid YouTube embed ID or fallback direct player
+    youtubeId?: string; // valid YouTube embed ID or fallback direct player
+    videoUrl?: string; // MP4 video source URL or Data URL
+    videoFileName?: string;
+    videoFileKey?: string;
+    videoSourceType?: 'youtube' | 'upload';
     durationSeconds: number;
     description: string;
     checkpoints: {

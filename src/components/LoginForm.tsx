@@ -26,8 +26,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
 
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
@@ -37,16 +38,23 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
       return;
     }
 
-    const result = loginUser(username, password, selectedRole);
-    if (!result.success || !result.user) {
-      setErrorMessage(result.error || 'Autentikasi gagal.');
-      return;
-    }
+    setIsSubmitting(true);
+    try {
+      const result = await loginUser(username, password, selectedRole);
+      if (!result.success || !result.user) {
+        setErrorMessage(result.error || 'Autentikasi gagal.');
+        return;
+      }
 
-    setSuccessMessage(`Berhasil masuk sebagai ${result.user.fullName}!`);
-    setTimeout(() => {
-      onLoginSuccess(result.user!);
-    }, 400);
+      setSuccessMessage(`Berhasil masuk sebagai ${result.user.fullName}!`);
+      setTimeout(() => {
+        onLoginSuccess(result.user!);
+      }, 400);
+    } catch {
+      setErrorMessage('Terjadi kendala saat memverifikasi login. Silakan coba lagi.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleRegister = (e: React.FormEvent) => {
@@ -198,9 +206,14 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
 
               <button
                 type="submit"
-                className="w-full mt-2 py-3 px-4 bg-emerald-800 hover:bg-emerald-900 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+                disabled={isSubmitting}
+                className="w-full mt-2 py-3 px-4 bg-emerald-800 hover:bg-emerald-900 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
               >
-                <span>Masuk sebagai {selectedRole === 'admin' ? 'Guru / Admin' : 'Siswa'}</span>
+                <span>
+                  {isSubmitting
+                    ? 'Memverifikasi Sandi...'
+                    : `Masuk sebagai ${selectedRole === 'admin' ? 'Guru / Admin' : 'Siswa'}`}
+                </span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>

@@ -9,6 +9,9 @@
 -- 4. Klik 'New Query', salin dan tempel (paste) seluruh kode SQL di bawah ini
 -- 5. Klik 'RUN' untuk membuat seluruh tabel dan data default
 -- =========================================================================
+-- AKTIFKAN EKSTENSI PGCRYPTO (UNTUK HASHING PASSWORD BCRYPT)
+-- =========================================================================
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- 1. TABEL PENGGUNA (USERS / SISWA & ADMIN)
 CREATE TABLE IF NOT EXISTS public.users (
@@ -99,30 +102,93 @@ ALTER TABLE public.assessment_results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.student_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.student_notes ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow public read-write for users" ON public.users;
 CREATE POLICY "Allow public read-write for users" 
 ON public.users FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow public read-write for chapters" ON public.chapters;
 CREATE POLICY "Allow public read-write for chapters" 
 ON public.chapters FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow public read-write for assessment_results" ON public.assessment_results;
 CREATE POLICY "Allow public read-write for assessment_results" 
 ON public.assessment_results FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow public read-write for student_progress" ON public.student_progress;
 CREATE POLICY "Allow public read-write for student_progress" 
 ON public.student_progress FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow public read-write for student_notes" ON public.student_notes;
 CREATE POLICY "Allow public read-write for student_notes" 
 ON public.student_notes FOR ALL USING (true) WITH CHECK (true);
 
 -- =========================================================================
--- DATA AWAL DEFAULT (SEED DATA)
+-- TRIGGER & FUNGSI HASHING OTOMATIS (PGCRYPTO BCRYPT)
+-- Memastikan setiap penambahan / perubahan password otomatis di-hash dengan salt
+-- =========================================================================
+CREATE OR REPLACE FUNCTION public.hash_user_password()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  -- Jika password terisi dan belum berformat bcrypt hash ($2a$, $2b$, dll.)
+  IF NEW.password IS NOT NULL AND NEW.password !~ '^\$2[abxy]\$.*' THEN
+    NEW.password := crypt(NEW.password, gen_salt('bf', 10));
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_hash_user_password ON public.users;
+CREATE TRIGGER trg_hash_user_password
+BEFORE INSERT OR UPDATE OF password ON public.users
+FOR EACH ROW
+EXECUTE FUNCTION public.hash_user_password();
+
+-- =========================================================================
+-- FUNGSI VERIFIKASI LOGIN SUPABASE SECARA AMAN (RPC)
+-- =========================================================================
+CREATE OR REPLACE FUNCTION public.verify_user_login(
+  p_identifier TEXT,
+  p_password TEXT
+)
+RETURNS SETOF public.users
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT *
+  FROM public.users u
+  WHERE (LOWER(u.username) = LOWER(TRIM(p_identifier)) OR u.nisn = TRIM(p_identifier))
+    AND (
+      -- Verifikasi kecocokan bcrypt hash dengan crypt()
+      u.password = crypt(p_password, u.password)
+      -- Fallback darurat jika ada password lama yang belum ter-hash
+      OR u.password = p_password
+    )
+  LIMIT 1;
+END;
+$$;
+
+-- Izin akses pemanggilan RPC
+GRANT EXECUTE ON FUNCTION public.verify_user_login(TEXT, TEXT) TO anon, authenticated, service_role;
+
+-- =========================================================================
+-- DATA AWAL DEFAULT (SEED DATA DENGAN BCRYPT HASH)
 -- =========================================================================
 
--- Masukkan akun Admin Guru dan Siswa Default
+-- Masukkan akun Admin Guru dan Siswa Default (di-hash dengan crypt / bcrypt)
 INSERT INTO public.users (id, username, password, full_name, role, nisn, class_grade, school, email)
 VALUES 
-  ('usr_admin_1', 'admin', 'admin123', 'Ustadz H. Ahmad Farhan, M.Pd.I', 'admin', NULL, NULL, 'SMA Negeri 1 Jakarta', 'admin.pai@sekolah.sch.id'),
-  ('usr_std_1', 'siswa', 'siswa123', 'Ahmad Fauzi', 'student', '0078129341', 'XI MIPA 2', 'SMA Negeri 1 Jakarta', 'fauzi.ahmad@siswa.belajar.id'),
-  ('usr_std_2', 'aisyah', 'siswa123', 'Siti Aisyah Azzahra', 'student', '0078129342', 'XI MIPA 2', 'SMA Negeri 1 Jakarta', 'aisyah.azzahra@siswa.belajar.id'),
-  ('usr_std_3', 'rizky', 'siswa123', 'Muhammad Rizky Pratama', 'student', '0078129343', 'XI IPS 1', 'SMA Negeri 1 Jakarta', 'rizky.pratama@siswa.belajar.id')
+  ('usr_admin_1', 'admin', crypt('admin123', gen_salt('bf', 10)), 'Ustadz H. Ahmad Farhan, M.Pd.I', 'admin', NULL, NULL, 'SMA Negeri 1 Jakarta', 'admin.pai@sekolah.sch.id'),
+  ('usr_std_1', 'siswa', crypt('siswa123', gen_salt('bf', 10)), 'Ahmad Fauzi', 'student', '0078129341', 'XI MIPA 2', 'SMA Negeri 1 Jakarta', 'fauzi.ahmad@siswa.belajar.id'),
+  ('usr_std_2', 'aisyah', crypt('siswa123', gen_salt('bf', 10)), 'Siti Aisyah Azzahra', 'student', '0078129342', 'XI MIPA 2', 'SMA Negeri 1 Jakarta', 'aisyah.azzahra@siswa.belajar.id'),
+  ('usr_std_3', 'rizky', crypt('siswa123', gen_salt('bf', 10)), 'Muhammad Rizky Pratama', 'student', '0078129343', 'XI IPS 1', 'SMA Negeri 1 Jakarta', 'rizky.pratama@siswa.belajar.id')
 ON CONFLICT (username) DO NOTHING;
+
+-- Migrasi otomatis: Ubah semua password yang sebelumnya masih plain text menjadi hash bcrypt
+UPDATE public.users
+SET password = crypt(password, gen_salt('bf', 10))
+WHERE password IS NOT NULL AND password !~ '^\$2[abxy]\$.*';
+

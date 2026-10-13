@@ -111,18 +111,73 @@ export const setCurrentUser = (user: UserAccount | null) => {
   }
 };
 
-export const loginUser = (
+export const loginUser = async (
   usernameInput: string,
   passwordInput: string,
   preferredRole?: UserRole
-): { success: boolean; user?: UserAccount; error?: string } => {
-  const users = getStoredUsers();
+): Promise<{ success: boolean; user?: UserAccount; error?: string }> => {
   const cleanUsername = usernameInput.trim().toLowerCase();
+  const rawIdentifier = usernameInput.trim();
 
+  // 1. Coba verifikasi lewat Supabase Database RPC (Metode 2: pgcrypto / bcrypt)
+  try {
+    const { data, error } = await supabase.rpc('verify_user_login', {
+      p_identifier: rawIdentifier,
+      p_password: passwordInput,
+    });
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      const row = data[0];
+      const verifiedUser: UserAccount = {
+        id: row.id,
+        username: row.username,
+        fullName: row.full_name,
+        role: row.role as UserRole,
+        nisn: row.nisn || undefined,
+        classGrade: row.class_grade || undefined,
+        school: row.school || undefined,
+        email: row.email || undefined,
+        createdAt: row.created_at || new Date().toISOString(),
+      };
+
+      if (preferredRole && verifiedUser.role !== preferredRole) {
+        return {
+          success: false,
+          error: `Akun ini terdaftar sebagai ${verifiedUser.role === 'admin' ? 'Admin' : 'Siswa'}, bukan ${preferredRole === 'admin' ? 'Admin' : 'Siswa'}.`,
+        };
+      }
+
+      setCurrentUser(verifiedUser);
+
+      // Sinkronkan ke local cache users jika belum ada
+      const currentList = getStoredUsers();
+      if (!currentList.some((u) => u.id === verifiedUser.id || u.username.toLowerCase() === verifiedUser.username.toLowerCase())) {
+        saveStoredUsers([...currentList, verifiedUser]);
+      }
+
+      return { success: true, user: verifiedUser };
+    } else if (!error && Array.isArray(data) && data.length === 0) {
+      // Cek apakah user ada tapi password salah
+      const { data: userExists } = await supabase
+        .from('users')
+        .select('id, role')
+        .or(`username.ilike.${cleanUsername},nisn.eq.${rawIdentifier}`)
+        .maybeSingle();
+
+      if (userExists) {
+        return { success: false, error: 'Kata sandi tidak sesuai' };
+      }
+    }
+  } catch (rpcErr) {
+    console.warn('Supabase login RPC note, fallback ke cache lokal:', rpcErr);
+  }
+
+  // 2. Fallback offline / local cache jika offline atau RPC belum terpasang
+  const users = getStoredUsers();
   const user = users.find(
     (u) =>
       u.username.toLowerCase() === cleanUsername ||
-      (u.nisn && u.nisn === usernameInput.trim())
+      (u.nisn && u.nisn === rawIdentifier)
   );
 
   if (!user) {
