@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Chapter } from '../types';
-import { Printer, Download, ArrowLeft, BookOpen, Video, FileText, Eye, CheckCircle2 } from 'lucide-react';
+import { Printer, Download, ArrowLeft, BookOpen, Video, FileText, Eye, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { getMediaBlob } from '../services/mediaStorage';
 
 interface PdfViewerProps {
@@ -17,23 +17,64 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   onOpenVideo,
 }) => {
   const documentRef = useRef<HTMLDivElement>(null);
-  const [actualPdfUrl, setActualPdfUrl] = useState<string | null>(chapter.pdfFileUrl || null);
+  const [actualPdfUrl, setActualPdfUrl] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'uploaded' | 'template'>(
-    chapter.pdfFileUrl || chapter.pdfFileKey ? 'uploaded' : 'template'
+    chapter.pdfFileKey || (chapter.pdfFileUrl && !chapter.pdfFileUrl.startsWith('blob:')) ? 'uploaded' : 'template'
   );
+  const [isLoadingPdf, setIsLoadingPdf] = useState<boolean>(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (chapter.pdfFileKey && !chapter.pdfFileUrl) {
-      getMediaBlob(chapter.pdfFileKey).then((url) => {
-        if (url) {
-          setActualPdfUrl(url);
-          setViewMode('uploaded');
-        }
-      });
-    } else if (chapter.pdfFileUrl) {
+    let isMounted = true;
+
+    // If there is an IndexedDB key, ALWAYS fetch a fresh valid object URL
+    if (chapter.pdfFileKey) {
+      setIsLoadingPdf(true);
+      setLoadError(null);
+      getMediaBlob(chapter.pdfFileKey)
+        .then((url) => {
+          if (!isMounted) return;
+          if (url) {
+            setActualPdfUrl(url);
+            setViewMode('uploaded');
+          } else if (chapter.pdfFileUrl && !chapter.pdfFileUrl.startsWith('blob:')) {
+            // Fallback to valid external/direct URL if not a stale blob: URL
+            setActualPdfUrl(chapter.pdfFileUrl);
+            setViewMode('uploaded');
+          } else {
+            // Blob URL expired or was not stored in this browser session
+            setActualPdfUrl(null);
+            setViewMode('template');
+            setLoadError('Berkas PDF unggahan tidak ditemukan di penyimpanan peramban ini. Menampilkan format Modul Resmi standar.');
+          }
+        })
+        .catch((err) => {
+          console.warn('Gagal memuat media blob PDF:', err);
+          if (!isMounted) return;
+          if (chapter.pdfFileUrl && !chapter.pdfFileUrl.startsWith('blob:')) {
+            setActualPdfUrl(chapter.pdfFileUrl);
+            setViewMode('uploaded');
+          } else {
+            setActualPdfUrl(null);
+            setViewMode('template');
+          }
+        })
+        .finally(() => {
+          if (isMounted) setIsLoadingPdf(false);
+        });
+    } else if (chapter.pdfFileUrl && !chapter.pdfFileUrl.startsWith('blob:')) {
+      // Valid persistent URL (e.g. https://... or public asset)
       setActualPdfUrl(chapter.pdfFileUrl);
       setViewMode('uploaded');
+    } else {
+      // No uploaded PDF or only stale blob URL without key
+      setActualPdfUrl(null);
+      setViewMode('template');
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [chapter.pdfFileKey, chapter.pdfFileUrl]);
 
   const handlePrint = () => {
@@ -43,7 +84,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   return (
     <div className="min-h-screen bg-slate-100 py-6 px-4 sm:px-6">
       {/* Top Document Action Bar (hidden when printing) */}
-      <div className="max-w-4xl mx-auto mb-6 bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-wrap items-center justify-between gap-4 no-print">
+      <div className="max-w-4xl mx-auto mb-4 bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-wrap items-center justify-between gap-4 no-print">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
@@ -57,7 +98,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
               Modul Dokumen PDF · Bab {chapter.number}
             </span>
             <p className="text-[11px] text-slate-500">
-              {chapter.pdfFileName ? `File: ${chapter.pdfFileName}` : 'Format Standar Modul Ajar Kurikulum Merdeka Fase F'}
+              {chapter.pdfFileName ? `File: ${chapter.pdfFileName}` : 'Format Standar Modul Ajar Kurikulum Merdeka'}
             </p>
           </div>
         </div>
@@ -117,29 +158,65 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         </div>
       </div>
 
+      {/* Info Notice when uploaded file cannot be found in browser storage */}
+      {loadError && (
+        <div className="max-w-4xl mx-auto mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 flex items-center justify-between no-print">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>{loadError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setLoadError(null)}
+            className="text-amber-900 font-bold hover:underline cursor-pointer"
+          >
+            Tutup
+          </button>
+        </div>
+      )}
+
       {/* View Mode: Uploaded PDF iframe */}
       {viewMode === 'uploaded' && actualPdfUrl ? (
         <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-          <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs text-slate-600">
+          <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
             <span className="font-semibold text-slate-800 flex items-center gap-1.5">
               <FileText className="w-4 h-4 text-rose-600" />
               {chapter.pdfFileName || 'Dokumen PDF Materi Pembelajaran'}
             </span>
-            <a
-              href={actualPdfUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-emerald-700 hover:text-emerald-800 font-medium inline-flex items-center gap-1"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              <span>Buka di Tab Baru</span>
-            </a>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-slate-500 hidden sm:inline">
+                Jika pratinjau browser tidak muncul:
+              </span>
+              <a
+                href={actualPdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-emerald-700 hover:text-emerald-800 font-medium inline-flex items-center gap-1 cursor-pointer"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Buka di Tab Baru</span>
+              </a>
+              <button
+                type="button"
+                onClick={() => setViewMode('template')}
+                className="text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
+              >
+                Lihat Modul Cetak &rarr;
+              </button>
+            </div>
           </div>
-          <iframe
-            src={actualPdfUrl}
-            title={`PDF Bab ${chapter.number}`}
-            className="w-full h-[85vh] border-0"
-          />
+          {isLoadingPdf ? (
+            <div className="h-[75vh] flex items-center justify-center text-slate-400 gap-2">
+              <RefreshCw className="w-5 h-5 animate-spin" />
+              <span>Memuat berkas PDF...</span>
+            </div>
+          ) : (
+            <iframe
+              src={actualPdfUrl}
+              title={`PDF Bab ${chapter.number}`}
+              className="w-full h-[85vh] border-0"
+            />
+          )}
         </div>
       ) : (
       /* Realistic Multi-page A4 PDF Paper Sheet */
@@ -156,7 +233,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
             MODUL AJAR PENDIDIKAN AGAMA ISLAM & BUDI PEKERTI
           </h2>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            FASE F · KELAS XI (SEBELAS) SMA/SMK · KURIKULUM MERDEKA
+            KELAS XI (SEBELAS) SMA/SMK · KURIKULUM MERDEKA
           </p>
         </div>
 
@@ -172,11 +249,15 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
           </div>
           <div>
             <span className="text-slate-500 font-medium">Alokasi Waktu: </span>
-            <span className="font-semibold text-slate-900">{chapter.pdfContent.totalStudyHours}</span>
+            <span className="font-semibold text-slate-900">
+              {chapter.pdfContent?.totalStudyHours || `${chapter.durationMinutes || 45} Menit (2 JP)`}
+            </span>
           </div>
           <div>
             <span className="text-slate-500 font-medium">Penyusun: </span>
-            <span className="font-semibold text-slate-900">{chapter.pdfContent.author}</span>
+            <span className="font-semibold text-slate-900">
+              {chapter.pdfContent?.author || 'Tim Guru PAI & Budi Pekerti'}
+            </span>
           </div>
           <div className="sm:col-span-2">
             <span className="text-slate-500 font-medium">Topik / Bab: </span>
@@ -195,7 +276,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
             Peserta didik mampu menganalisis dalil naqli, mengontekstualisasikan nilai-nilai akhlakul karimah dalam problematika remaja modern, serta membiasakan sikap terpuji dalam kehidupan sosial.
           </p>
           <ul className="list-disc list-inside space-y-1.5 text-xs text-slate-700">
-            {chapter.learningObjectives.map((obj, oIdx) => (
+            {(chapter.learningObjectives || []).map((obj, oIdx) => (
               <li key={oIdx} className="leading-relaxed">
                 {obj}
               </li>
@@ -204,20 +285,28 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         </section>
 
         {/* Bagian II: Landasan Dalil Naqli */}
-        <section className="mb-8 p-5 rounded-xl bg-emerald-50/50 border border-emerald-200">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-900 mb-3">
-            II. Landasan Dalil Naqli ({chapter.dalilUtama.surah})
-          </h3>
-          <p className="font-arabic text-xl sm:text-2xl text-right leading-loose font-bold text-emerald-950 mb-3">
-            {chapter.dalilUtama.arabic}
-          </p>
-          <p className="text-xs text-slate-700 font-medium italic mb-2">
-            Transliterasi: {chapter.dalilUtama.transliteration}
-          </p>
-          <p className="text-xs text-slate-800 leading-relaxed font-serif">
-            Artinya: "{chapter.dalilUtama.translation}"
-          </p>
-        </section>
+        {chapter.dalilUtama && (
+          <section className="mb-8 p-5 rounded-xl bg-emerald-50/50 border border-emerald-200">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-900 mb-3">
+              II. Landasan Dalil Naqli ({chapter.dalilUtama.surah || 'Dalil Syariat'})
+            </h3>
+            {chapter.dalilUtama.arabic && (
+              <p className="font-arabic text-xl sm:text-2xl text-right leading-loose font-bold text-emerald-950 mb-3">
+                {chapter.dalilUtama.arabic}
+              </p>
+            )}
+            {chapter.dalilUtama.transliteration && (
+              <p className="text-xs text-slate-700 font-medium italic mb-2">
+                Transliterasi: {chapter.dalilUtama.transliteration}
+              </p>
+            )}
+            {chapter.dalilUtama.translation && (
+              <p className="text-xs text-slate-800 leading-relaxed font-serif">
+                Artinya: "{chapter.dalilUtama.translation}"
+              </p>
+            )}
+          </section>
+        )}
 
         {/* Bagian III: Ringkasan Materi Inti */}
         <section className="mb-8">
@@ -225,7 +314,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
             III. Rangkuman Materi Pokok
           </h3>
           <div className="space-y-2.5">
-            {chapter.pdfContent.summaryPoints.map((point, pIdx) => (
+            {(chapter.pdfContent?.summaryPoints || chapter.learningObjectives || []).map((point, pIdx) => (
               <div key={pIdx} className="flex items-start gap-2.5 text-xs text-slate-700">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <p className="leading-relaxed">{point}</p>
@@ -235,27 +324,29 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         </section>
 
         {/* Bagian IV: Studi Kasus Kontekstual Remaja */}
-        <section className="mb-8">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1 mb-3">
-            IV. Studi Kasus Remaja SMA
-          </h3>
-          {chapter.pdfContent.caseStudies.map((cs, cIdx) => (
-            <div key={cIdx} className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-              <h4 className="text-xs font-bold text-slate-900">{cs.caseTitle}</h4>
-              <p className="text-xs text-slate-700 leading-relaxed italic bg-white p-3 rounded border border-slate-100">
-                "{cs.story}"
-              </p>
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-slate-800">Pertanyaan Pemantik Diskusi:</p>
-                <ol className="list-decimal list-inside space-y-1 text-xs text-slate-600">
-                  {cs.discussionQuestions.map((q, qIdx) => (
-                    <li key={qIdx} className="leading-relaxed">{q}</li>
-                  ))}
-                </ol>
+        {(chapter.pdfContent?.caseStudies || []).length > 0 && (
+          <section className="mb-8">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900 border-b border-slate-200 pb-1 mb-3">
+              IV. Studi Kasus Remaja SMA
+            </h3>
+            {chapter.pdfContent!.caseStudies.map((cs, cIdx) => (
+              <div key={cIdx} className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                <h4 className="text-xs font-bold text-slate-900">{cs.caseTitle}</h4>
+                <p className="text-xs text-slate-700 leading-relaxed italic bg-white p-3 rounded border border-slate-100">
+                  "{cs.story}"
+                </p>
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-slate-800">Pertanyaan Pemantik Diskusi:</p>
+                  <ol className="list-decimal list-inside space-y-1 text-xs text-slate-600">
+                    {(cs.discussionQuestions || []).map((q, qIdx) => (
+                      <li key={qIdx} className="leading-relaxed">{q}</li>
+                    ))}
+                  </ol>
+                </div>
               </div>
-            </div>
-          ))}
-        </section>
+            ))}
+          </section>
+        )}
 
         {/* Bagian V: Lembar Kerja Siswa (LKS) */}
         <section className="border-t border-slate-200 pt-6">
@@ -289,24 +380,6 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
             </div>
           </div>
         </section>
-
-        {/* Tanda Tangan Pengesahan Guru & Wali */}
-        <div className="mt-12 pt-6 grid grid-cols-2 gap-8 text-center text-xs text-slate-700">
-          <div>
-            <p>Mengetahui,</p>
-            <p className="font-semibold text-slate-900">Guru Pamong PAI & Budi Pekerti</p>
-            <div className="h-16" />
-            <p className="font-bold underline text-slate-900">Drs. H. M. Asrori, M.Pd.I</p>
-            <p className="text-[10px] text-slate-500">NIP. 19780512 200312 1 002</p>
-          </div>
-          <div>
-            <p>Jakarta, 2026</p>
-            <p className="font-semibold text-slate-900">Siswa / Peserta Didik</p>
-            <div className="h-16" />
-            <p className="font-bold underline text-slate-900">................................................</p>
-            <p className="text-[10px] text-slate-500">NISN / Kelas XI SMA</p>
-          </div>
-        </div>
       </div>
       )}
     </div>

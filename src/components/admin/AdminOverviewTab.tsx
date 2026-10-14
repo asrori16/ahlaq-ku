@@ -37,23 +37,32 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
 
   const sem1Count = chapters.filter((c) => c.semester === 1).length;
   const sem2Count = chapters.filter((c) => c.semester === 2).length;
+  const totalPretest = chapters.reduce((sum, c) => sum + (c.pretest?.length || 0), 0);
+
   const recentAssessments = [...assessments]
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     .slice(0, 5);
 
   return (
     <div className="space-y-5">
-     
-
-      {/* 4 Stat Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* 5 Stat Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div 
           onClick={() => onNavigateTab('materi')} 
-          className="bg-white p-4 rounded-xl border border-slate-200 cursor-pointer hover:border-slate-300 transition-colors"
+          className="bg-white p-4 rounded-xl border border-slate-200 cursor-pointer hover:border-emerald-400 hover:shadow-2xs transition-all"
         >
           <div className="text-xs text-slate-500">Total Bab Materi</div>
           <div className="text-2xl font-bold text-slate-900 mt-1">{chapters.length}</div>
           <div className="text-[11px] text-slate-400 mt-0.5">Sem 1: {sem1Count} &bull; Sem 2: {sem2Count}</div>
+        </div>
+
+        <div 
+          onClick={() => onNavigateTab('materi')} 
+          className="bg-white p-4 rounded-xl border border-slate-200 cursor-pointer hover:border-amber-400 hover:shadow-2xs transition-all"
+        >
+          <div className="text-xs text-slate-500">Soal Asesmen</div>
+          <div className="text-2xl font-bold text-slate-900 mt-1">{totalPretest}</div>
+          <div className="text-[11px] text-amber-700 mt-0.5">Pre &amp; Post-Test Tersinkron</div>
         </div>
 
         <div 

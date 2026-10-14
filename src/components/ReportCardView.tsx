@@ -64,7 +64,7 @@ export const ReportCardView: React.FC<ReportCardViewProps> = ({
             MATA PELAJARAN PENDIDIKAN AGAMA ISLAM & BUDI PEKERTI
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            FASE F · KELAS XI (SEBELAS) SMA / MA · TAHUN AJARAN 2026/2027
+            KELAS XI (SEBELAS) SMA / MA · TAHUN AJARAN 2026/2027
           </p>
         </div>
 
@@ -79,8 +79,8 @@ export const ReportCardView: React.FC<ReportCardViewProps> = ({
             <p className="font-bold text-slate-900">{schoolName}</p>
           </div>
           <div>
-            <span className="text-slate-500">Tingkat / Fase:</span>
-            <p className="font-bold text-slate-900">Kelas XI / Fase F</p>
+            <span className="text-slate-500">Tingkat :</span>
+            <p className="font-bold text-slate-900">Kelas XI</p>
           </div>
           <div>
             <span className="text-slate-500">Status Kelulusan:</span>
@@ -181,23 +181,6 @@ export const ReportCardView: React.FC<ReportCardViewProps> = ({
               </tr>
             </tfoot>
           </table>
-        </div>
-
-        {/* Tanda Tangan Resmi Pengesahan Rapor */}
-        <div className="pt-8 border-t border-slate-200 grid grid-cols-2 gap-8 text-center text-xs text-slate-700">
-          <div>
-            <p>Mengetahui,</p>
-            <p className="font-semibold text-slate-900">Orang Tua / Wali Murid</p>
-            <div className="h-16" />
-            <p className="font-bold underline text-slate-900">................................................</p>
-          </div>
-          <div>
-            <p>Jakarta, 2026</p>
-            <p className="font-semibold text-slate-900">Guru Pamong PAI & Budi Pekerti</p>
-            <div className="h-16" />
-            <p className="font-bold underline text-slate-900">Drs. H. M. Asrori, M.Pd.I</p>
-            <p className="text-[10px] text-slate-500">NIP. 19780512 200312 1 002</p>
-          </div>
         </div>
       </div>
     </div>

@@ -24,12 +24,10 @@ import { AssessmentResultModal } from './components/AssessmentResultModal';
 import { CertificateModal } from './components/CertificateModal';
 import { StudentProfileModal } from './components/StudentProfileModal';
 import { ReportCardView } from './components/ReportCardView';
-import { BookOpen, Video, Award, Sparkles, Filter } from 'lucide-react';
 
 export default function App() {
   // User Authentication
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(getCurrentUser());
-  const [previewAsStudent, setPreviewAsStudent] = useState(false);
 
   // Dynamic Chapters from chapterService
   const [chapters, setChapters] = useState<Chapter[]>(getStoredChapters());
@@ -197,7 +195,6 @@ export default function App() {
 
   const handleLoginSuccess = (user: UserAccount) => {
     setCurrentUser(user);
-    setPreviewAsStudent(false);
     if (user.role === 'student') {
       setStudent({
         name: user.fullName,
@@ -211,7 +208,6 @@ export default function App() {
   const handleLogout = () => {
     logoutUser();
     setCurrentUser(null);
-    setPreviewAsStudent(false);
   };
 
   // If not logged in, render LoginForm
@@ -219,8 +215,8 @@ export default function App() {
     return <LoginForm onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // If logged in as Admin and not in preview mode, render AdminDashboard
-  if (currentUser.role === 'admin' && !previewAsStudent) {
+  // If logged in as Admin, render AdminDashboard
+  if (currentUser.role === 'admin') {
     return (
       <AdminDashboard
         currentUser={currentUser}
@@ -228,31 +224,12 @@ export default function App() {
         onRefreshChapters={handleRefreshChapters}
         assessments={assessments}
         onLogout={handleLogout}
-        onPreviewAsStudent={() => setPreviewAsStudent(true)}
       />
     );
   }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
-      {/* Admin Preview Mode Banner */}
-      {currentUser.role === 'admin' && previewAsStudent && (
-        <div className="bg-emerald-800 text-white px-4 py-2 text-xs font-medium flex items-center justify-between border-b border-emerald-900 shadow-xs z-50">
-          <div className="flex items-center gap-2">
-            <span className="font-bold bg-white text-emerald-900 px-2 py-0.5 rounded text-[10px]">
-              MODE PRATINJAU SISWA
-            </span>
-            <span className="hidden sm:inline">Anda sedang melihat materi dari sudut pandang siswa.</span>
-          </div>
-          <button
-            onClick={() => setPreviewAsStudent(false)}
-            className="bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-md text-xs font-semibold cursor-pointer transition-colors"
-          >
-            Kembali ke Panel Admin &rarr;
-          </button>
-        </div>
-      )}
-
       {/* Top Navbar */}
       <Navbar
         activeTab={activeTab}
@@ -260,10 +237,9 @@ export default function App() {
           setActiveTab(tab);
           setPdfChapter(null);
         }}
-        studentName={currentUser.role === 'admin' && !previewAsStudent ? currentUser.fullName : student.name}
+        studentName={student.name}
         userRole={currentUser.role}
         onLogout={handleLogout}
-        onBackToAdmin={currentUser.role === 'admin' ? () => setPreviewAsStudent(false) : undefined}
         onOpenProfile={() => setIsProfileOpen(true)}
       />
 
@@ -346,7 +322,7 @@ export default function App() {
                   Daftar Bab Pelajaran
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Pendidikan Agama Islam & Budi Pekerti (Fase F)
+                  Pendidikan Agama Islam & Budi Pekerti
                 </p>
               </div>
 

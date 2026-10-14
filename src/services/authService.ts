@@ -319,8 +319,6 @@ export const updateUser = (
   return true;
 };
 
-export const updateStudentUser = updateUser;
-
 export const deleteUser = (id: string): boolean => {
   const users = getStoredUsers();
   const filtered = users.filter((u) => u.id !== id);
@@ -339,7 +337,5 @@ export const deleteUser = (id: string): boolean => {
 
   return true;
 };
-
-export const deleteStudentUser = deleteUser;
 
 

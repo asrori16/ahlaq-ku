@@ -4,7 +4,6 @@ import {
   BookOpen, 
   Users, 
   Award, 
-  Eye, 
   LogOut, 
   X 
 } from 'lucide-react';
@@ -20,7 +19,6 @@ interface AdminSidebarProps {
   chapterCount: number;
   userCount: number;
   assessmentCount: number;
-  onPreviewAsStudent: () => void;
   onLogout: () => void;
 }
 
@@ -33,7 +31,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   chapterCount,
   userCount,
   assessmentCount,
-  onPreviewAsStudent,
   onLogout,
 }) => {
   const navItems: {
@@ -53,7 +50,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       icon: BookOpen,
       badge: chapterCount,
     },
-    
     {
       id: 'nilai',
       label: 'Rekap Nilai',
@@ -104,8 +100,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             <X className="w-4 h-4" />
           </button>
         </div>
-
-       
 
         {/* Navigation Menu */}
         <nav className="p-2 flex-1 space-y-1 overflow-y-auto">

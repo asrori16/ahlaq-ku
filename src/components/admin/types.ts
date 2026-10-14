@@ -1,1 +1,1 @@
-export type AdminTab = 'overview' | 'materi' | 'users' | 'nilai';
+export type AdminTab = 'overview' | 'materi' | 'nilai' | 'users';

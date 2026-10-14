@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { 
   Menu, 
   CheckCircle, 
-  Eye, 
   LogOut 
 } from 'lucide-react';
 import { Chapter, UserAccount, AssessmentRecord } from '../types';
@@ -20,7 +19,6 @@ interface AdminDashboardProps {
   onRefreshChapters: () => void;
   assessments: AssessmentRecord[];
   onLogout: () => void;
-  onPreviewAsStudent: () => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -29,7 +27,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onRefreshChapters,
   assessments,
   onLogout,
-  onPreviewAsStudent,
 }) => {
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>('overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
@@ -69,7 +66,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         chapterCount={chapters.length}
         userCount={userList.length}
         assessmentCount={assessments.length}
-        onPreviewAsStudent={onPreviewAsStudent}
         onLogout={onLogout}
       />
 
@@ -96,15 +92,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onPreviewAsStudent}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Portal Siswa</span>
-            </button>
-
             <button
               type="button"
               onClick={onLogout}

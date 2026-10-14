@@ -1,4 +1,4 @@
-import { Chapter } from '../types';
+import { Chapter, Question } from '../types';
 import { CHAPTERS_DATA } from '../data/chapters';
 import { supabase } from '../lib/supabase';
 
@@ -53,6 +53,7 @@ export const addChapter = (data: {
   pdfFileName?: string;
   pdfFileKey?: string;
   subsectionsContent?: string;
+  questions?: Question[];
 }): Chapter => {
   const currentChapters = getStoredChapters();
   const nextId = currentChapters.length > 0 ? Math.max(...currentChapters.map((c) => c.id)) + 1 : 1;
@@ -76,6 +77,23 @@ export const addChapter = (data: {
         .map((p) => p.trim())
         .filter(Boolean)
     : [data.description];
+
+  const initialQuestions: Question[] = (data.questions && data.questions.length > 0)
+    ? data.questions
+    : [
+        {
+          id: nextId * 100 + 1,
+          question: `Apa makna utama dari materi ${data.title}?`,
+          options: [
+            'Mengamalkan nilai-nilai akhlakul karimah dalam pergaulan',
+            'Sekadar menghafal definisi tanpa praktik',
+            'Mengikuti budaya asing tanpa filter',
+            'Menghindari silaturahmi dengan sesama',
+          ],
+          correctAnswer: 0,
+          explanation: `Pemahaman akhlak Islam bertujuan untuk diamalkan dalam kehidupan nyata.`,
+        },
+      ];
 
   const newChapter: Chapter = {
     id: nextId,
@@ -117,7 +135,7 @@ export const addChapter = (data: {
     ],
     pdfContent: {
       moduleTitle: data.title,
-      author: 'Tim MGMP PAI & Budi Pekerti Fase F',
+      author: 'Tim MGMP PAI & Budi Pekerti',
       schoolLevel: 'SMA / SMK / MA Kelas 11',
       totalStudyHours: `${data.durationMinutes || 45} Menit (2 JP)`,
       summaryPoints: objectives,
@@ -163,34 +181,8 @@ export const addChapter = (data: {
       ],
       keyTakeaways: objectives,
     },
-    pretest: [
-      {
-        id: nextId * 100 + 1,
-        question: `Apa makna utama dari materi ${data.title}?`,
-        options: [
-          'Mengamalkan nilai-nilai akhlakul karimah dalam pergaulan',
-          'Sekadar menghafal definisi tanpa praktik',
-          'Mengikuti budaya asing tanpa filter',
-          'Menghindari silaturahmi dengan sesama',
-        ],
-        correctAnswer: 0,
-        explanation: `Pemahaman akhlak Islam bertujuan untuk diamalkan dalam kehidupan nyata.`,
-      },
-    ],
-    posttest: [
-      {
-        id: nextId * 100 + 2,
-        question: `Bagaimana cara terbaik mengimplementasikan ${data.title} di lingkungan sekolah?`,
-        options: [
-          'Berperilaku santun, menghormati sesama, dan menjaga batas syariat',
-          'Membuat kelompok eksklusif dan mengisolasi diri',
-          'Mengabaikan nasehat guru dan orang tua',
-          'Berinteraksi bebas tanpa batasan norma',
-        ],
-        correctAnswer: 0,
-        explanation: `Penerapan akhlak mulia diwujudkan melalui kesantunan dan kepatuhan terhadap syariat.`,
-      },
-    ],
+    pretest: initialQuestions,
+    posttest: initialQuestions,
   };
 
   const updated = [...currentChapters, newChapter];
@@ -214,6 +206,8 @@ export const addChapter = (data: {
       learning_objectives: newChapter.learningObjectives,
       ebook_pages: newChapter.ebookPages,
       video_tutorial: newChapter.videoTutorial,
+      pretest_questions: initialQuestions,
+      posttest_questions: initialQuestions,
     })
     .then(({ error }) => {
       if (error) console.info('Supabase chapters insert note:', error.message);
@@ -224,16 +218,28 @@ export const addChapter = (data: {
 
 export const updateChapter = (
   id: number,
-  data: Partial<Chapter>
+  data: Partial<Chapter> & { questions?: Question[] }
 ): boolean => {
   const current = getStoredChapters();
   const index = current.findIndex((c) => c.id === id);
   if (index === -1) return false;
 
   const existing = current[index];
+
+  // Pre-test & Post-test automatic synchronization
+  let synchronizedQuestions: Question[] | undefined = undefined;
+  if (data.questions !== undefined) {
+    synchronizedQuestions = data.questions;
+  } else if (data.pretest !== undefined) {
+    synchronizedQuestions = data.pretest;
+  } else if (data.posttest !== undefined) {
+    synchronizedQuestions = data.posttest;
+  }
+
   current[index] = {
     ...existing,
     ...data,
+    ...(synchronizedQuestions !== undefined ? { pretest: synchronizedQuestions, posttest: synchronizedQuestions } : {}),
     number: data.number !== undefined ? data.number.trim() : existing.number,
     videoTutorial: data.videoTutorial
       ? { ...existing.videoTutorial, ...data.videoTutorial }
@@ -242,19 +248,58 @@ export const updateChapter = (
   saveStoredChapters(current);
 
   // Sync update to Supabase in background
+  const updatePayload: Record<string, unknown> = {
+    title: data.title,
+    short_title: data.shortTitle,
+    subtitle: data.subtitle,
+    semester: data.semester,
+    duration_minutes: data.durationMinutes,
+    description: data.description,
+  };
+  if (synchronizedQuestions !== undefined) {
+    updatePayload.pretest_questions = synchronizedQuestions;
+    updatePayload.posttest_questions = synchronizedQuestions;
+  }
+
   supabase
     .from('chapters')
-    .update({
-      title: data.title,
-      short_title: data.shortTitle,
-      subtitle: data.subtitle,
-      semester: data.semester,
-      duration_minutes: data.durationMinutes,
-      description: data.description,
-    })
+    .update(updatePayload)
     .eq('id', id)
     .then(({ error }) => {
       if (error) console.info('Supabase chapters update note:', error.message);
+    });
+
+  return true;
+};
+
+/**
+ * Update assessment questions for a specific chapter, automatically synchronizing both pretest and posttest
+ */
+export const updateChapterQuestions = (
+  chapterId: number,
+  questions: Question[]
+): boolean => {
+  const current = getStoredChapters();
+  const index = current.findIndex((c) => c.id === chapterId);
+  if (index === -1) return false;
+
+  current[index] = {
+    ...current[index],
+    pretest: questions,
+    posttest: questions,
+  };
+  saveStoredChapters(current);
+
+  // Sync update to Supabase in background
+  supabase
+    .from('chapters')
+    .update({
+      pretest_questions: questions,
+      posttest_questions: questions,
+    })
+    .eq('id', chapterId)
+    .then(({ error }) => {
+      if (error) console.info('Supabase questions sync note:', error.message);
     });
 
   return true;

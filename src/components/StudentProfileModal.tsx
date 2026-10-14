@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, School, Award, Save, X, BookOpen, CheckCircle } from 'lucide-react';
+import { User, Save, X } from 'lucide-react';
 import { saveStudentProfile } from '../services/supabaseService';
 import { AssessmentRecord } from '../types';
 
@@ -89,7 +89,7 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
             </label>
             <input
               type="text"
-              value="Kelas XI (Sebelas) SMA / MA - Fase F"
+              value="Kelas XI (Sebelas) SMA"
               disabled
               className="w-full text-xs sm:text-sm bg-slate-100 border border-slate-200 rounded-xl p-2.5 text-slate-500 cursor-not-allowed"
             />
