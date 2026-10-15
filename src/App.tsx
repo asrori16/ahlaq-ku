@@ -10,7 +10,7 @@ import {
   updateStudentProgress
 } from './services/supabaseService';
 import { getCurrentUser, logoutUser } from './services/authService';
-import { getStoredChapters } from './services/chapterService';
+import { getStoredChapters, syncChaptersFromSupabase } from './services/chapterService';
 import { LoginForm } from './components/LoginForm';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Navbar } from './components/Navbar';
@@ -71,9 +71,16 @@ export default function App() {
     const records = await fetchAssessmentResults(student.name);
     setAssessments(records);
 
+    // Sync remote chapters from Supabase (including videos & media uploaded by admin)
+    const syncedChapters = await syncChaptersFromSupabase();
+    if (syncedChapters && syncedChapters.length > 0) {
+      setChapters(syncedChapters);
+      setSelectedChapter((prev) => syncedChapters.find((c) => c.id === prev.id) || syncedChapters[0]);
+    }
+
     // Load progress for each chapter
     const pMap: Record<number, StudentProgress> = {};
-    chapters.forEach(c => {
+    (syncedChapters || chapters).forEach((c) => {
       pMap[c.id] = getStudentProgress(c.id);
     });
     setProgressMap(pMap);

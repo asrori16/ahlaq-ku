@@ -6,12 +6,11 @@ import {
   Video, 
   ExternalLink, 
   Download, 
-  CheckCircle, 
-  HelpCircle, 
   Send, 
   Trash2, 
   Clock, 
-  BookOpen 
+  BookOpen,
+  Cloud
 } from 'lucide-react';
 import { saveStudentNote, fetchStudentNotes, deleteStudentNote } from '../services/supabaseService';
 import { getMediaBlob } from '../services/mediaStorage';
@@ -67,19 +66,22 @@ export const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
   const videoTutorial = chapter.videoTutorial;
   const [actualVideoSrc, setActualVideoSrc] = useState<string | null>(videoTutorial.videoUrl || null);
 
-  // Checkpoints interactive state
-  const [answeredCheckpoints, setAnsweredCheckpoints] = useState<Record<number, number>>({});
-
   // Notes state
   const [notes, setNotes] = useState<StudentNote[]>([]);
   const [newNoteText, setNewNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
 
-  // Resolve MP4 file from IndexedDB if stored by key
+  // Resolve MP4 file (Supabase Cloud URL or IndexedDB fallback)
   useEffect(() => {
-    if (videoTutorial.videoFileKey && !videoTutorial.videoUrl) {
+    if (videoTutorial.videoUrl && videoTutorial.videoUrl.startsWith('http')) {
+      setActualVideoSrc(videoTutorial.videoUrl);
+    } else if (videoTutorial.videoFileKey) {
       getMediaBlob(videoTutorial.videoFileKey).then((url) => {
-        if (url) setActualVideoSrc(url);
+        if (url) {
+          setActualVideoSrc(url);
+        } else if (videoTutorial.videoUrl) {
+          setActualVideoSrc(videoTutorial.videoUrl);
+        }
       });
     } else if (videoTutorial.videoUrl) {
       setActualVideoSrc(videoTutorial.videoUrl);
@@ -95,13 +97,11 @@ export const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
 
   const youtubeEmbedUrl = extractYouTubeEmbedUrl(videoTutorial.youtubeId);
   const isUploadedMp4 = Boolean(actualVideoSrc);
-
-  const handleAnswerCheckpoint = (checkpointIdx: number, optionIdx: number) => {
-    setAnsweredCheckpoints((prev) => ({
-      ...prev,
-      [checkpointIdx]: optionIdx,
-    }));
-  };
+  const isCloudVideo = Boolean(
+    actualVideoSrc &&
+      actualVideoSrc.startsWith('http') &&
+      actualVideoSrc.includes('/storage/v1/object/public/')
+  );
 
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,10 +198,21 @@ export const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                  {isUploadedMp4 ? 'Video MP4 (Unggahan)' : 'Video YouTube'}
-                </span>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                {isCloudVideo ? (
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                    <Cloud className="w-3 h-3 text-emerald-700" />
+                    <span>Cloud Supabase (Streaming Daring)</span>
+                  </span>
+                ) : isUploadedMp4 ? (
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                    Video MP4 (Lokal Browser)
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    Video YouTube
+                  </span>
+                )}
                 <span className="text-xs text-slate-500 flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5" />
                   {Math.round(videoTutorial.durationSeconds / 60) || chapter.durationMinutes || 45} Menit
@@ -258,91 +269,7 @@ export const InteractiveVideoPlayer: React.FC<InteractiveVideoPlayerProps> = ({
           </div>
         </div>
 
-        {/* ================= PERTANYAAN PEMANTIK / LATIHAN INTERAKTIF ================= */}
-        {videoTutorial.checkpoints && videoTutorial.checkpoints.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                <HelpCircle className="w-4 h-4 text-emerald-700" />
-                <span>Pertanyaan Pemahaman Materi</span>
-              </h3>
-              <span className="text-xs text-slate-400">
-                {Object.keys(answeredCheckpoints).length} dari {videoTutorial.checkpoints.length} dijawab
-              </span>
-            </div>
 
-            <div className="space-y-4">
-              {videoTutorial.checkpoints.map((cp, cpIdx) => {
-                const selectedOption = answeredCheckpoints[cpIdx];
-                const hasAnswered = selectedOption !== undefined;
-                const isCorrect = selectedOption === cp.correctOption;
-
-                return (
-                  <div
-                    key={cpIdx}
-                    className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-3"
-                  >
-                    <div className="flex items-center justify-between text-slate-600 font-semibold">
-                      <span>Latihan {cpIdx + 1}: {cp.label}</span>
-                      {hasAnswered && (
-                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
-                          isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          {isCorrect ? 'Benar!' : 'Kurang Tepat'}
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="text-xs font-semibold text-slate-900 leading-snug">
-                      {cp.questionPrompt}
-                    </p>
-
-                    {/* Options list */}
-                    <div className="space-y-1.5">
-                      {cp.options.map((opt, optIdx) => {
-                        const isChosen = selectedOption === optIdx;
-                        let btnStyle = 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100';
-
-                        if (hasAnswered) {
-                          if (optIdx === cp.correctOption) {
-                            btnStyle = 'bg-emerald-50 border-emerald-500 text-emerald-900 font-semibold';
-                          } else if (isChosen && !isCorrect) {
-                            btnStyle = 'bg-rose-50 border-rose-300 text-rose-800 line-through';
-                          }
-                        }
-
-                        return (
-                          <button
-                            key={optIdx}
-                            type="button"
-                            onClick={() => handleAnswerCheckpoint(cpIdx, optIdx)}
-                            className={`w-full text-left p-2.5 rounded-lg border text-xs transition-colors flex items-center justify-between cursor-pointer ${btnStyle}`}
-                          >
-                            <span>
-                              <b className="mr-2">{String.fromCharCode(65 + optIdx)}.</b>
-                              {opt}
-                            </span>
-                            {hasAnswered && optIdx === cp.correctOption && (
-                              <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Feedback Explanation */}
-                    {hasAnswered && (
-                      <div className="p-2.5 bg-white rounded-lg border border-slate-200 text-[11px] text-slate-600 space-y-0.5">
-                        <span className="font-bold text-slate-800 block">Penjelasan:</span>
-                        <p>{cp.explanation}</p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {/* ================= CATATAN BELAJAR SISWA ================= */}
         <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3">

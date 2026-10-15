@@ -32,7 +32,10 @@ export interface ConnectionStatus {
     assessment_results: boolean;
     student_notes: boolean;
     student_progress: boolean;
+    chapters: boolean;
   };
+  storageVerified: boolean;
+  storageBucketName: string;
 }
 
 export const checkSupabaseConnection = async (): Promise<ConnectionStatus> => {
@@ -44,18 +47,40 @@ export const checkSupabaseConnection = async (): Promise<ConnectionStatus> => {
       assessment_results: false,
       student_notes: false,
       student_progress: false,
+      chapters: false,
     },
+    storageVerified: false,
+    storageBucketName: 'akhlaqku-media',
   };
 
   try {
-    // Test basic HTTP ping by querying auth or health
+    // Test basic HTTP ping by querying tables
     const { error: assessErr } = await supabase.from('assessment_results').select('id').limit(1);
     const { error: notesErr } = await supabase.from('student_notes').select('id').limit(1);
     const { error: progErr } = await supabase.from('student_progress').select('id').limit(1);
+    const { error: chapErr } = await supabase.from('chapters').select('id').limit(1);
 
     status.tablesVerified.assessment_results = !assessErr || assessErr.code !== '42P01';
     status.tablesVerified.student_notes = !notesErr || notesErr.code !== '42P01';
     status.tablesVerified.student_progress = !progErr || progErr.code !== '42P01';
+    status.tablesVerified.chapters = !chapErr || chapErr.code !== '42P01';
+
+    // Verify storage bucket
+    try {
+      const { error: storageErr } = await supabase.storage.from('akhlaqku-media').list('', { limit: 1 });
+      if (!storageErr) {
+        status.storageVerified = true;
+        status.storageBucketName = 'akhlaqku-media';
+      } else {
+        const { error: fallbackErr } = await supabase.storage.from('media').list('', { limit: 1 });
+        if (!fallbackErr) {
+          status.storageVerified = true;
+          status.storageBucketName = 'media';
+        }
+      }
+    } catch {
+      status.storageVerified = false;
+    }
 
     // If endpoint responds (even with table not found 42P01 or auth response), client is connected to Supabase URL
     if (

@@ -248,13 +248,24 @@ export const updateChapter = (
   saveStoredChapters(current);
 
   // Sync update to Supabase in background
+  const updatedItem = current[index];
   const updatePayload: Record<string, unknown> = {
-    title: data.title,
-    short_title: data.shortTitle,
-    subtitle: data.subtitle,
-    semester: data.semester,
-    duration_minutes: data.durationMinutes,
-    description: data.description,
+    number: updatedItem.number,
+    title: updatedItem.title,
+    short_title: updatedItem.shortTitle,
+    subtitle: updatedItem.subtitle,
+    semester: updatedItem.semester,
+    duration_minutes: updatedItem.durationMinutes,
+    description: updatedItem.description,
+    dalil_surah: updatedItem.dalilUtama.surah,
+    dalil_arabic: updatedItem.dalilUtama.arabic,
+    dalil_transliteration: updatedItem.dalilUtama.transliteration,
+    dalil_translation: updatedItem.dalilUtama.translation,
+    learning_objectives: updatedItem.learningObjectives,
+    ebook_pages: updatedItem.ebookPages,
+    pdf_content: updatedItem.pdfContent,
+    video_tutorial: updatedItem.videoTutorial,
+    updated_at: new Date().toISOString(),
   };
   if (synchronizedQuestions !== undefined) {
     updatePayload.pretest_questions = synchronizedQuestions;
@@ -296,6 +307,7 @@ export const updateChapterQuestions = (
     .update({
       pretest_questions: questions,
       posttest_questions: questions,
+      updated_at: new Date().toISOString(),
     })
     .eq('id', chapterId)
     .then(({ error }) => {
@@ -327,4 +339,79 @@ export const deleteChapter = (id: number): boolean => {
 export const resetChaptersToDefault = (): Chapter[] => {
   saveStoredChapters(CHAPTERS_DATA);
   return CHAPTERS_DATA;
+};
+
+/**
+ * Fetches chapters from Supabase and synchronizes them with localStorage.
+ * Ensures student devices receive videos and materials uploaded by the teacher.
+ */
+export const syncChaptersFromSupabase = async (): Promise<Chapter[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('chapters')
+      .select('*')
+      .order('id', { ascending: true });
+
+    if (error || !data || data.length === 0) {
+      return getStoredChapters();
+    }
+
+    const currentLocal = getStoredChapters();
+
+    // Map Supabase rows to full Chapter structure
+    const remoteChapters: Chapter[] = data.map((row: Record<string, any>) => {
+      const fallback = CHAPTERS_DATA.find((c) => c.id === row.id) || currentLocal.find((c) => c.id === row.id);
+      return {
+        id: Number(row.id),
+        number: row.number || (fallback ? fallback.number : '01'),
+        title: row.title || (fallback ? fallback.title : 'Judul Materi'),
+        shortTitle: row.short_title || (fallback ? fallback.shortTitle : row.title?.slice(0, 30) || ''),
+        subtitle: row.subtitle || (fallback ? fallback.subtitle : ''),
+        semester: Number(row.semester) || (fallback ? fallback.semester : 1),
+        durationMinutes: Number(row.duration_minutes) || (fallback ? fallback.durationMinutes : 45),
+        description: row.description || (fallback ? fallback.description : ''),
+        colorScheme: fallback ? fallback.colorScheme : {
+          bg: 'bg-emerald-50',
+          border: 'border-emerald-200',
+          badge: 'bg-emerald-600',
+          accent: 'emerald',
+        },
+        learningObjectives: row.learning_objectives || (fallback ? fallback.learningObjectives : []),
+        dalilUtama: {
+          surah: row.dalil_surah || (fallback ? fallback.dalilUtama.surah : ''),
+          arabic: row.dalil_arabic || (fallback ? fallback.dalilUtama.arabic : ''),
+          transliteration: row.dalil_transliteration || (fallback ? fallback.dalilUtama.transliteration : ''),
+          translation: row.dalil_translation || (fallback ? fallback.dalilUtama.translation : ''),
+        },
+        pdfFileName: row.video_tutorial?.pdfFileName || fallback?.pdfFileName,
+        pdfFileUrl: row.video_tutorial?.pdfFileUrl || fallback?.pdfFileUrl,
+        pdfFileKey: row.video_tutorial?.pdfFileKey || fallback?.pdfFileKey,
+        ebookPages: row.ebook_pages || (fallback ? fallback.ebookPages : []),
+        pdfContent: row.pdf_content || (fallback ? fallback.pdfContent : undefined),
+        videoTutorial: row.video_tutorial || (fallback ? fallback.videoTutorial : {
+          title: `Video Pembelajaran: ${row.title}`,
+          youtubeId: 'qC03y3jV3pE',
+          durationSeconds: 2700,
+          description: row.description,
+          checkpoints: [],
+          chaptersList: [],
+          keyTakeaways: [],
+        }),
+        pretest: row.pretest_questions || (fallback ? fallback.pretest : []),
+        posttest: row.posttest_questions || (fallback ? fallback.posttest : []),
+      };
+    });
+
+    // Merge: Supabase rows take precedence, keep any local-only chapters if they exist
+    const mergedMap = new Map<number, Chapter>();
+    currentLocal.forEach((c) => mergedMap.set(c.id, c));
+    remoteChapters.forEach((c) => mergedMap.set(c.id, c));
+
+    const finalChapters = Array.from(mergedMap.values()).sort((a, b) => a.id - b.id);
+    saveStoredChapters(finalChapters);
+    return finalChapters;
+  } catch (err) {
+    console.warn('Failed to sync chapters from Supabase, keeping cached version:', err);
+    return getStoredChapters();
+  }
 };

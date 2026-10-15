@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Plus, 
   Search, 
@@ -14,7 +14,14 @@ import {
   Copy, 
   ChevronDown, 
   ChevronUp, 
-  AlertCircle
+  AlertCircle,
+  Cloud,
+  CloudOff,
+  HardDrive,
+  ExternalLink,
+  Loader2,
+  RefreshCw,
+  Check
 } from 'lucide-react';
 import { Chapter, Question } from '../../types';
 import { 
@@ -23,7 +30,13 @@ import {
   deleteChapter, 
   updateChapterQuestions 
 } from '../../services/chapterService';
-import { saveMediaBlob } from '../../services/mediaStorage';
+import { 
+  uploadVideoToStorage, 
+  uploadPdfToStorage, 
+  isCloudStorageUrl, 
+  checkStorageStatus,
+  StorageStatus 
+} from '../../services/storageService';
 
 interface AdminMateriTabProps {
   chapters: Chapter[];
@@ -43,6 +56,30 @@ export const AdminMateriTab: React.FC<AdminMateriTabProps> = ({
   const [isAddChapterOpen, setIsAddChapterOpen] = useState(false);
   const [editingChapter, setEditingChapter] = useState<Chapter | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [uploadStatusMessage, setUploadStatusMessage] = useState<string | null>(null);
+
+  // Supabase Storage Status
+  const [storageStatus, setStorageStatus] = useState<StorageStatus | null>(null);
+  const [, setIsCheckingStorage] = useState(false);
+
+  const refreshStorageStatus = async () => {
+    setIsCheckingStorage(true);
+    try {
+      const res = await checkStorageStatus();
+      setStorageStatus(res);
+      if (res.available) {
+        showToast(`✅ Supabase Storage Aktif: Bucket '${res.bucketName}' terhubung`);
+      } else {
+        showToast('⚠️ Supabase Storage: Bucket belum aktif di Supabase');
+      }
+    } finally {
+      setIsCheckingStorage(false);
+    }
+  };
+
+  useEffect(() => {
+    checkStorageStatus().then(setStorageStatus);
+  }, []);
 
   // Dedicated Quick Assessment Manager Modal per Chapter
   const [managingAssessmentChapter, setManagingAssessmentChapter] = useState<Chapter | null>(null);
@@ -249,27 +286,36 @@ export const AdminMateriTab: React.FC<AdminMateriTabProps> = ({
     }
 
     setIsSaving(true);
+    setUploadStatusMessage('Menyiapkan berkas materi...');
     try {
       let finalPdfFileKey = chapterForm.pdfFileKey;
       let finalPdfFileUrl = chapterForm.pdfFileUrl;
       let finalPdfFileName = chapterForm.pdfFileName;
 
       if (selectedPdfFile) {
-        const pdfKey = `pdf_${Date.now()}_${selectedPdfFile.name.replace(/\s+/g, '_')}`;
-        finalPdfFileUrl = await saveMediaBlob(pdfKey, selectedPdfFile);
-        finalPdfFileKey = pdfKey;
-        finalPdfFileName = selectedPdfFile.name;
+        setUploadStatusMessage('Mengunggah dokumen PDF ke Cloud Storage...');
+        const pdfRes = await uploadPdfToStorage(selectedPdfFile, (msg) => setUploadStatusMessage(msg));
+        finalPdfFileUrl = pdfRes.url;
+        finalPdfFileKey = pdfRes.key;
+        finalPdfFileName = pdfRes.fileName;
       }
 
       let finalVideoFileKey = chapterForm.videoFileKey;
       let finalVideoUrl = chapterForm.videoUrl;
       let finalVideoFileName = chapterForm.videoFileName;
+      let isVideoCloud = false;
 
       if (selectedVideoFile) {
-        const videoKey = `video_${Date.now()}_${selectedVideoFile.name.replace(/\s+/g, '_')}`;
-        finalVideoUrl = await saveMediaBlob(videoKey, selectedVideoFile);
-        finalVideoFileKey = videoKey;
-        finalVideoFileName = selectedVideoFile.name;
+        setUploadStatusMessage('Mengunggah video MP4 ke Supabase Storage...');
+        const videoRes = await uploadVideoToStorage(selectedVideoFile, (msg) => setUploadStatusMessage(msg));
+        finalVideoUrl = videoRes.url;
+        finalVideoFileKey = videoRes.key;
+        finalVideoFileName = videoRes.fileName;
+        isVideoCloud = videoRes.isCloud;
+
+        if (!videoRes.isCloud) {
+          showToast('Catatan: Video tersimpan lokal di browser');
+        }
       }
 
       if (editingChapter) {
@@ -305,7 +351,14 @@ export const AdminMateriTab: React.FC<AdminMateriTabProps> = ({
           },
           questions: chapterForm.assessmentQuestions,
         });
-        showToast(`Bab ${chapterForm.number} berhasil diperbarui`);
+        
+        if (selectedVideoFile && isVideoCloud) {
+          showToast(`Bab ${chapterForm.number} diperbarui & video tersimpan di Supabase Cloud!`);
+        } else if (selectedVideoFile) {
+          showToast(`Bab ${chapterForm.number} diperbarui (video tersimpan lokal di browser)`);
+        } else {
+          showToast(`Bab ${chapterForm.number} berhasil diperbarui`);
+        }
       } else {
         addChapter({
           number: chapterForm.number.trim(),
@@ -331,7 +384,14 @@ export const AdminMateriTab: React.FC<AdminMateriTabProps> = ({
           subsectionsContent: chapterForm.subsectionsContent,
           questions: chapterForm.assessmentQuestions,
         });
-        showToast(`Bab ${chapterForm.number} berhasil ditambahkan`);
+
+        if (selectedVideoFile && isVideoCloud) {
+          showToast(`Bab ${chapterForm.number} ditambahkan & video aktif di Supabase Cloud!`);
+        } else if (selectedVideoFile) {
+          showToast(`Bab ${chapterForm.number} ditambahkan (video tersimpan lokal)`);
+        } else {
+          showToast(`Bab ${chapterForm.number} berhasil ditambahkan`);
+        }
       }
 
       setIsAddChapterOpen(false);
@@ -341,6 +401,7 @@ export const AdminMateriTab: React.FC<AdminMateriTabProps> = ({
       showToast('Gagal menyimpan materi');
     } finally {
       setIsSaving(false);
+      setUploadStatusMessage(null);
     }
   };
 
@@ -582,14 +643,39 @@ export const AdminMateriTab: React.FC<AdminMateriTabProps> = ({
           </select>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenAddChapter}
-          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Tambah Bab</span>
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {storageStatus?.available ? (
+            <button
+              type="button"
+              onClick={refreshStorageStatus}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+              title="Klik untuk cek status Supabase Storage"
+            >
+              <Cloud className="w-4 h-4 text-emerald-600" />
+              <span className="hidden sm:inline">Storage: {storageStatus.bucketName} (Aktif)</span>
+              <span className="sm:hidden">Storage Aktif</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={refreshStorageStatus}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+              title="Klik untuk cek status koneksi storage"
+            >
+              <CloudOff className="w-4 h-4 text-amber-600" />
+              <span>Storage Belum Aktif</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleOpenAddChapter}
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Tambah Bab</span>
+          </button>
+        </div>
       </div>
 
       {/* ================= CLEAN CHAPTER LIST CARDS ================= */}
@@ -643,10 +729,22 @@ export const AdminMateriTab: React.FC<AdminMateriTabProps> = ({
                     </span>
                   )}
                   {hasUploadedVideo && (
-                    <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded flex items-center gap-1">
-                      <Video className="w-3 h-3 text-slate-500" />
-                      Video
-                    </span>
+                    isCloudStorageUrl(ch.videoTutorial.videoUrl) ? (
+                      <span className="bg-emerald-50 text-emerald-800 border border-emerald-200/80 px-2 py-0.5 rounded flex items-center gap-1 font-medium">
+                        <Cloud className="w-3 h-3 text-emerald-600" />
+                        Cloud Video
+                      </span>
+                    ) : ch.videoTutorial.videoSourceType === 'upload' ? (
+                      <span className="bg-amber-50 text-amber-800 border border-amber-200/80 px-2 py-0.5 rounded flex items-center gap-1">
+                        <HardDrive className="w-3 h-3 text-amber-600" />
+                        Video Lokal
+                      </span>
+                    ) : (
+                      <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded flex items-center gap-1">
+                        <Video className="w-3 h-3 text-slate-500" />
+                        YouTube
+                      </span>
+                    )
                   )}
                   {ch.dalilUtama.surah && (
                     <span className="text-slate-400 truncate max-w-[180px]">
@@ -881,6 +979,41 @@ export const AdminMateriTab: React.FC<AdminMateriTabProps> = ({
 
                 {chapterForm.videoSourceType === 'upload' ? (
                   <div className="space-y-2">
+                    {/* Status badges */}
+                    {isCloudStorageUrl(chapterForm.videoUrl) && !selectedVideoFile && (
+                      <div className="flex items-center justify-between p-2 bg-emerald-50 border border-emerald-200 rounded-md text-[11px] text-emerald-800">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Cloud className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span className="truncate">Tersimpan di <strong>Supabase Cloud Storage</strong> (Dapat diakses daring seluruh siswa)</span>
+                        </div>
+                        <a
+                          href={chapterForm.videoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-emerald-800 hover:underline flex items-center gap-0.5 text-[10px] shrink-0 font-medium ml-2"
+                        >
+                          <span>URL</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    )}
+
+                    {!isCloudStorageUrl(chapterForm.videoUrl) && !selectedVideoFile && chapterForm.videoFileName && (
+                      <div className="flex items-center justify-between p-2 bg-amber-50 border border-amber-200 rounded-md text-[11px] text-amber-900">
+                        <div className="flex items-center gap-1.5">
+                          <HardDrive className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span>Video tersimpan secara lokal di browser ini.</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedVideoFile && (
+                      <div className="p-2 bg-emerald-50/90 border border-emerald-200 rounded-md text-[11px] text-emerald-900 flex items-center justify-between">
+                        <span className="truncate">Siap diunggah ke Supabase: <strong>{selectedVideoFile.name}</strong> ({(selectedVideoFile.size / (1024 * 1024)).toFixed(1)} MB)</span>
+                        <span className="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-medium shrink-0 ml-2">Baru</span>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-2">
                       <label className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 bg-white border border-slate-300 border-dashed rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                         <Upload className="w-3.5 h-3.5 text-slate-600" />
@@ -1045,8 +1178,17 @@ export const AdminMateriTab: React.FC<AdminMateriTabProps> = ({
                   disabled={isSaving}
                   className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-emerald-800 hover:bg-emerald-900 rounded-lg shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>{isSaving ? 'Menyimpan...' : 'Simpan'}</span>
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>{uploadStatusMessage || 'Menyimpan...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Simpan Materi</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
