@@ -28,7 +28,8 @@ import {
   addChapter, 
   updateChapter, 
   deleteChapter, 
-  updateChapterQuestions 
+  updateChapterQuestions,
+  resetChaptersToDefault 
 } from '../../services/chapterService';
 import { 
   uploadVideoToStorage, 
@@ -319,7 +320,7 @@ export const AdminMateriTab: React.FC<AdminMateriTabProps> = ({
       }
 
       if (editingChapter) {
-        updateChapter(editingChapter.id, {
+        await updateChapter(editingChapter.id, {
           number: chapterForm.number.trim(),
           title: chapterForm.title.trim(),
           shortTitle: chapterForm.shortTitle || chapterForm.title.slice(0, 30),
@@ -360,7 +361,7 @@ export const AdminMateriTab: React.FC<AdminMateriTabProps> = ({
           showToast(`Bab ${chapterForm.number} berhasil diperbarui`);
         }
       } else {
-        addChapter({
+        await addChapter({
           number: chapterForm.number.trim(),
           title: chapterForm.title.trim(),
           shortTitle: chapterForm.shortTitle,
@@ -791,8 +792,34 @@ export const AdminMateriTab: React.FC<AdminMateriTabProps> = ({
       </div>
 
       {filteredChapters.length === 0 && (
-        <div className="bg-white p-8 text-center rounded-xl border border-slate-200 text-slate-400 text-xs">
-          Tidak ada materi yang sesuai.
+        <div className="bg-white p-8 text-center rounded-xl border border-slate-200 text-slate-500 text-xs space-y-3">
+          <p>{chapters.length === 0 ? 'Belum ada materi pembelajaran yang tersimpan.' : 'Tidak ada materi yang sesuai dengan pencarian.'}</p>
+          {chapters.length === 0 && (
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleOpenAddChapter}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-800 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Tambah Bab Baru</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Pulihkan 5 materi default bawaan aplikasi?')) {
+                    resetChaptersToDefault();
+                    onRefreshChapters();
+                    showToast('Materi default berhasil dimuat');
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Muat Materi Bawaan (Default)</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 

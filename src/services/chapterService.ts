@@ -7,19 +7,21 @@ const STORAGE_KEY = 'akhlaqku_chapters_list';
 export const getStoredChapters = (): Chapter[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
+    // Inisialisasi awal hanya jika STORAGE_KEY belum pernah dibuat di browser (null)
+    if (raw === null) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(CHAPTERS_DATA));
       return CHAPTERS_DATA;
     }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) {
+    if (!Array.isArray(parsed)) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(CHAPTERS_DATA));
       return CHAPTERS_DATA;
     }
+    // Jika berupa array (termasuk [] jika materi sengaja dihapus), kembalikan apa adanya
     return parsed;
   } catch (e) {
     console.warn('Error reading stored chapters, falling back to default', e);
-    return CHAPTERS_DATA;
+    return [];
   }
 };
 
@@ -31,7 +33,7 @@ export const saveStoredChapters = (chapters: Chapter[]) => {
   }
 };
 
-export const addChapter = (data: {
+export const addChapter = async (data: {
   number?: string;
   title: string;
   shortTitle: string;
@@ -54,7 +56,7 @@ export const addChapter = (data: {
   pdfFileKey?: string;
   subsectionsContent?: string;
   questions?: Question[];
-}): Chapter => {
+}): Promise<Chapter> => {
   const currentChapters = getStoredChapters();
   const nextId = currentChapters.length > 0 ? Math.max(...currentChapters.map((c) => c.id)) + 1 : 1;
   const nextNumber = data.number?.trim() || (nextId < 10 ? `0${nextId}` : `${nextId}`);
@@ -95,6 +97,62 @@ export const addChapter = (data: {
         },
       ];
 
+  const pdfContentData = {
+    moduleTitle: data.title,
+    author: 'Tim MGMP PAI & Budi Pekerti',
+    schoolLevel: 'SMA / SMK / MA Kelas 11',
+    totalStudyHours: `${data.durationMinutes || 45} Menit (2 JP)`,
+    summaryPoints: objectives,
+    caseStudies: [
+      {
+        caseTitle: `Refleksi Akhlak: ${data.title}`,
+        story: `Sebagai generasi muda muslim di era digital, bagaimana Anda mengimplementasikan ${data.title} di lingkungan sekolah dan masyarakat?`,
+        discussionQuestions: [
+          'Bagaimana tantangan terbesar dalam menjaga nilai ini hari ini?',
+          'Apa langkah konkret yang dapat dilakukan oleh remaja muslim?',
+        ],
+      },
+    ],
+    pdfFileName: data.pdfFileName,
+    pdfFileUrl: data.pdfFileUrl,
+    pdfFileKey: data.pdfFileKey,
+  };
+
+  const videoTutorialData = {
+    title: `Video Pembelajaran Interaktif: ${data.title}`,
+    youtubeId: data.youtubeId?.trim() || 'qC03y3jV3pE',
+    videoUrl: data.videoUrl,
+    videoFileName: data.videoFileName,
+    videoFileKey: data.videoFileKey,
+    videoSourceType: data.videoSourceType || (data.videoUrl ? 'upload' : 'youtube'),
+    durationSeconds: (data.durationMinutes || 45) * 60,
+    description: data.description,
+    checkpoints: [
+      {
+        timestampSeconds: 60,
+        label: 'Pemahaman Dasar',
+        questionPrompt: `Berdasarkan pengantar materi, apa inti dari ${data.title}?`,
+        options: [
+          'Menjaga kehormatan dan ketaatan syariat',
+          'Mengikuti tren tanpa batas',
+          'Mengabaikan adab pergaulan',
+          'Bersikap acuh tak acuh',
+        ],
+        correctOption: 0,
+        explanation: `Inti dari materi ini adalah menegakkan akhlak mulia dan ketaatan syariat.`,
+      },
+    ],
+    chaptersList: [
+      { time: '00:00', seconds: 0, title: 'Pengantar Materi' },
+      { time: '05:00', seconds: 300, title: 'Kajian Dalil & Konsep' },
+      { time: '10:00', seconds: 600, title: 'Penerapan Sehari-hari' },
+    ],
+    keyTakeaways: objectives,
+    pdfFileName: data.pdfFileName,
+    pdfFileUrl: data.pdfFileUrl,
+    pdfFileKey: data.pdfFileKey,
+  };
+
   const newChapter: Chapter = {
     id: nextId,
     number: nextNumber,
@@ -133,54 +191,8 @@ export const addChapter = (data: {
         ],
       },
     ],
-    pdfContent: {
-      moduleTitle: data.title,
-      author: 'Tim MGMP PAI & Budi Pekerti',
-      schoolLevel: 'SMA / SMK / MA Kelas 11',
-      totalStudyHours: `${data.durationMinutes || 45} Menit (2 JP)`,
-      summaryPoints: objectives,
-      caseStudies: [
-        {
-          caseTitle: `Refleksi Akhlak: ${data.title}`,
-          story: `Sebagai generasi muda muslim di era digital, bagaimana Anda mengimplementasikan ${data.title} di lingkungan sekolah dan masyarakat?`,
-          discussionQuestions: [
-            'Bagaimana tantangan terbesar dalam menjaga nilai ini hari ini?',
-            'Apa langkah konkret yang dapat dilakukan oleh remaja muslim?',
-          ],
-        },
-      ],
-    },
-    videoTutorial: {
-      title: `Video Pembelajaran Interaktif: ${data.title}`,
-      youtubeId: data.youtubeId?.trim() || 'qC03y3jV3pE',
-      videoUrl: data.videoUrl,
-      videoFileName: data.videoFileName,
-      videoFileKey: data.videoFileKey,
-      videoSourceType: data.videoSourceType || (data.videoUrl ? 'upload' : 'youtube'),
-      durationSeconds: (data.durationMinutes || 45) * 60,
-      description: data.description,
-      checkpoints: [
-        {
-          timestampSeconds: 60,
-          label: 'Pemahaman Dasar',
-          questionPrompt: `Berdasarkan pengantar materi, apa inti dari ${data.title}?`,
-          options: [
-            'Menjaga kehormatan dan ketaatan syariat',
-            'Mengikuti tren tanpa batas',
-            'Mengabaikan adab pergaulan',
-            'Bersikap acuh tak acuh',
-          ],
-          correctOption: 0,
-          explanation: `Inti dari materi ini adalah menegakkan akhlak mulia dan ketaatan syariat.`,
-        },
-      ],
-      chaptersList: [
-        { time: '00:00', seconds: 0, title: 'Pengantar Materi' },
-        { time: '05:00', seconds: 300, title: 'Kajian Dalil & Konsep' },
-        { time: '10:00', seconds: 600, title: 'Penerapan Sehari-hari' },
-      ],
-      keyTakeaways: objectives,
-    },
+    pdfContent: pdfContentData,
+    videoTutorial: videoTutorialData,
     pretest: initialQuestions,
     posttest: initialQuestions,
   };
@@ -188,38 +200,41 @@ export const addChapter = (data: {
   const updated = [...currentChapters, newChapter];
   saveStoredChapters(updated);
 
-  // Sync insert to Supabase in background
-  supabase
-    .from('chapters')
-    .insert({
-      number: newChapter.number,
-      title: newChapter.title,
-      short_title: newChapter.shortTitle,
-      subtitle: newChapter.subtitle,
-      semester: newChapter.semester,
-      duration_minutes: newChapter.durationMinutes,
-      description: newChapter.description,
-      dalil_surah: newChapter.dalilUtama.surah,
-      dalil_arabic: newChapter.dalilUtama.arabic,
-      dalil_transliteration: newChapter.dalilUtama.transliteration,
-      dalil_translation: newChapter.dalilUtama.translation,
-      learning_objectives: newChapter.learningObjectives,
-      ebook_pages: newChapter.ebookPages,
-      video_tutorial: newChapter.videoTutorial,
-      pretest_questions: initialQuestions,
-      posttest_questions: initialQuestions,
-    })
-    .then(({ error }) => {
-      if (error) console.info('Supabase chapters insert note:', error.message);
-    });
+  // Sync insert to Supabase
+  try {
+    const { error } = await supabase
+      .from('chapters')
+      .insert({
+        number: newChapter.number,
+        title: newChapter.title,
+        short_title: newChapter.shortTitle,
+        subtitle: newChapter.subtitle,
+        semester: newChapter.semester,
+        duration_minutes: newChapter.durationMinutes,
+        description: newChapter.description,
+        dalil_surah: newChapter.dalilUtama.surah,
+        dalil_arabic: newChapter.dalilUtama.arabic,
+        dalil_transliteration: newChapter.dalilUtama.transliteration,
+        dalil_translation: newChapter.dalilUtama.translation,
+        learning_objectives: newChapter.learningObjectives,
+        ebook_pages: newChapter.ebookPages,
+        pdf_content: pdfContentData,
+        video_tutorial: videoTutorialData,
+        pretest_questions: initialQuestions,
+        posttest_questions: initialQuestions,
+      });
+    if (error) console.info('Supabase chapters insert note:', error.message);
+  } catch (err) {
+    console.warn('Supabase insert error caught:', err);
+  }
 
   return newChapter;
 };
 
-export const updateChapter = (
+export const updateChapter = async (
   id: number,
   data: Partial<Chapter> & { questions?: Question[] }
-): boolean => {
+): Promise<boolean> => {
   const current = getStoredChapters();
   const index = current.findIndex((c) => c.id === id);
   if (index === -1) return false;
@@ -236,18 +251,46 @@ export const updateChapter = (
     synchronizedQuestions = data.posttest;
   }
 
+  const newPdfFileName = data.pdfFileName !== undefined ? data.pdfFileName : existing.pdfFileName;
+  const newPdfFileUrl = data.pdfFileUrl !== undefined ? data.pdfFileUrl : existing.pdfFileUrl;
+  const newPdfFileKey = data.pdfFileKey !== undefined ? data.pdfFileKey : existing.pdfFileKey;
+
+  const updatedPdfContent = {
+    ...(existing.pdfContent || {}),
+    ...(data.pdfContent || {}),
+    moduleTitle: data.pdfContent?.moduleTitle || existing.pdfContent?.moduleTitle || existing.title || '',
+    author: data.pdfContent?.author || existing.pdfContent?.author || 'Tim MGMP PAI & Budi Pekerti',
+    schoolLevel: data.pdfContent?.schoolLevel || existing.pdfContent?.schoolLevel || 'SMA / SMK / MA Kelas 11',
+    totalStudyHours: data.pdfContent?.totalStudyHours || existing.pdfContent?.totalStudyHours || `${existing.durationMinutes || 45} Menit (2 JP)`,
+    summaryPoints: data.pdfContent?.summaryPoints || existing.pdfContent?.summaryPoints || existing.learningObjectives || [],
+    caseStudies: data.pdfContent?.caseStudies || existing.pdfContent?.caseStudies || [],
+    pdfFileName: newPdfFileName,
+    pdfFileUrl: newPdfFileUrl,
+    pdfFileKey: newPdfFileKey,
+  };
+
+  const updatedVideoTutorial = {
+    ...existing.videoTutorial,
+    ...(data.videoTutorial || {}),
+    pdfFileName: newPdfFileName,
+    pdfFileUrl: newPdfFileUrl,
+    pdfFileKey: newPdfFileKey,
+  };
+
   current[index] = {
     ...existing,
     ...data,
     ...(synchronizedQuestions !== undefined ? { pretest: synchronizedQuestions, posttest: synchronizedQuestions } : {}),
     number: data.number !== undefined ? data.number.trim() : existing.number,
-    videoTutorial: data.videoTutorial
-      ? { ...existing.videoTutorial, ...data.videoTutorial }
-      : existing.videoTutorial,
+    pdfFileName: newPdfFileName,
+    pdfFileUrl: newPdfFileUrl,
+    pdfFileKey: newPdfFileKey,
+    pdfContent: updatedPdfContent,
+    videoTutorial: updatedVideoTutorial,
   };
   saveStoredChapters(current);
 
-  // Sync update to Supabase in background
+  // Sync update to Supabase
   const updatedItem = current[index];
   const updatePayload: Record<string, unknown> = {
     number: updatedItem.number,
@@ -263,8 +306,8 @@ export const updateChapter = (
     dalil_translation: updatedItem.dalilUtama.translation,
     learning_objectives: updatedItem.learningObjectives,
     ebook_pages: updatedItem.ebookPages,
-    pdf_content: updatedItem.pdfContent,
-    video_tutorial: updatedItem.videoTutorial,
+    pdf_content: updatedPdfContent,
+    video_tutorial: updatedVideoTutorial,
     updated_at: new Date().toISOString(),
   };
   if (synchronizedQuestions !== undefined) {
@@ -272,13 +315,15 @@ export const updateChapter = (
     updatePayload.posttest_questions = synchronizedQuestions;
   }
 
-  supabase
-    .from('chapters')
-    .update(updatePayload)
-    .eq('id', id)
-    .then(({ error }) => {
-      if (error) console.info('Supabase chapters update note:', error.message);
-    });
+  try {
+    const { error } = await supabase
+      .from('chapters')
+      .update(updatePayload)
+      .eq('id', id);
+    if (error) console.info('Supabase chapters update note:', error.message);
+  } catch (err) {
+    console.warn('Supabase update error caught:', err);
+  }
 
   return true;
 };
@@ -336,6 +381,17 @@ export const deleteChapter = (id: number): boolean => {
   return true;
 };
 
+export const deleteAllChapters = async (): Promise<boolean> => {
+  saveStoredChapters([]);
+  try {
+    const { error } = await supabase.from('chapters').delete().neq('id', 0);
+    if (error) console.info('Supabase bulk delete chapters note:', error.message);
+  } catch (e) {
+    console.warn('Failed to bulk delete from Supabase:', e);
+  }
+  return true;
+};
+
 export const resetChaptersToDefault = (): Chapter[] => {
   saveStoredChapters(CHAPTERS_DATA);
   return CHAPTERS_DATA;
@@ -352,15 +408,59 @@ export const syncChaptersFromSupabase = async (): Promise<Chapter[]> => {
       .select('*')
       .order('id', { ascending: true });
 
-    if (error || !data || data.length === 0) {
+    if (error) {
+      console.warn('Supabase chapters fetch note:', error.message);
       return getStoredChapters();
+    }
+
+    // Jika query ke Supabase berhasil:
+    // Jika tabel di database kosong (karena materi telah dihapus seluruhnya)
+    if (!data || data.length === 0) {
+      saveStoredChapters([]);
+      return [];
     }
 
     const currentLocal = getStoredChapters();
 
     // Map Supabase rows to full Chapter structure
     const remoteChapters: Chapter[] = data.map((row: Record<string, any>) => {
-      const fallback = CHAPTERS_DATA.find((c) => c.id === row.id) || currentLocal.find((c) => c.id === row.id);
+      const localMatch = currentLocal.find((c) => c.id === Number(row.id));
+      const fallback = localMatch || CHAPTERS_DATA.find((c) => c.id === Number(row.id));
+
+      const pdfFileName =
+        row.pdf_content?.pdfFileName ||
+        row.video_tutorial?.pdfFileName ||
+        row.pdf_file_name ||
+        localMatch?.pdfFileName ||
+        fallback?.pdfFileName ||
+        '';
+
+      const pdfFileUrl =
+        row.pdf_content?.pdfFileUrl ||
+        row.video_tutorial?.pdfFileUrl ||
+        row.pdf_file_url ||
+        localMatch?.pdfFileUrl ||
+        fallback?.pdfFileUrl ||
+        '';
+
+      const pdfFileKey =
+        row.pdf_content?.pdfFileKey ||
+        row.video_tutorial?.pdfFileKey ||
+        row.pdf_file_key ||
+        localMatch?.pdfFileKey ||
+        fallback?.pdfFileKey ||
+        '';
+
+      const videoTutorial = row.video_tutorial || (fallback ? fallback.videoTutorial : {
+        title: `Video Pembelajaran: ${row.title}`,
+        youtubeId: 'qC03y3jV3pE',
+        durationSeconds: 2700,
+        description: row.description,
+        checkpoints: [],
+        chaptersList: [],
+        keyTakeaways: [],
+      });
+
       return {
         id: Number(row.id),
         number: row.number || (fallback ? fallback.number : '01'),
@@ -383,31 +483,37 @@ export const syncChaptersFromSupabase = async (): Promise<Chapter[]> => {
           transliteration: row.dalil_transliteration || (fallback ? fallback.dalilUtama.transliteration : ''),
           translation: row.dalil_translation || (fallback ? fallback.dalilUtama.translation : ''),
         },
-        pdfFileName: row.video_tutorial?.pdfFileName || fallback?.pdfFileName,
-        pdfFileUrl: row.video_tutorial?.pdfFileUrl || fallback?.pdfFileUrl,
-        pdfFileKey: row.video_tutorial?.pdfFileKey || fallback?.pdfFileKey,
+        pdfFileName,
+        pdfFileUrl,
+        pdfFileKey,
         ebookPages: row.ebook_pages || (fallback ? fallback.ebookPages : []),
-        pdfContent: row.pdf_content || (fallback ? fallback.pdfContent : undefined),
-        videoTutorial: row.video_tutorial || (fallback ? fallback.videoTutorial : {
-          title: `Video Pembelajaran: ${row.title}`,
-          youtubeId: 'qC03y3jV3pE',
-          durationSeconds: 2700,
-          description: row.description,
-          checkpoints: [],
-          chaptersList: [],
-          keyTakeaways: [],
-        }),
+        pdfContent: {
+          ...(fallback?.pdfContent || {}),
+          ...(row.pdf_content || {}),
+          moduleTitle: row.pdf_content?.moduleTitle || row.title || fallback?.pdfContent?.moduleTitle || 'Materi Pembelajaran',
+          author: row.pdf_content?.author || fallback?.pdfContent?.author || 'Tim MGMP PAI & Budi Pekerti',
+          schoolLevel: row.pdf_content?.schoolLevel || fallback?.pdfContent?.schoolLevel || 'SMA / SMK / MA Kelas 11',
+          totalStudyHours: row.pdf_content?.totalStudyHours || fallback?.pdfContent?.totalStudyHours || `${row.duration_minutes || 45} Menit (2 JP)`,
+          summaryPoints: row.pdf_content?.summaryPoints || fallback?.pdfContent?.summaryPoints || row.learning_objectives || [],
+          caseStudies: row.pdf_content?.caseStudies || fallback?.pdfContent?.caseStudies || [],
+          pdfFileName,
+          pdfFileUrl,
+          pdfFileKey,
+        },
+        videoTutorial: {
+          ...videoTutorial,
+          pdfFileName,
+          pdfFileUrl,
+          pdfFileKey,
+        },
         pretest: row.pretest_questions || (fallback ? fallback.pretest : []),
         posttest: row.posttest_questions || (fallback ? fallback.posttest : []),
       };
     });
 
-    // Merge: Supabase rows take precedence, keep any local-only chapters if they exist
-    const mergedMap = new Map<number, Chapter>();
-    currentLocal.forEach((c) => mergedMap.set(c.id, c));
-    remoteChapters.forEach((c) => mergedMap.set(c.id, c));
-
-    const finalChapters = Array.from(mergedMap.values()).sort((a, b) => a.id - b.id);
+    // Supabase adalah sumber kebenaran (source of truth).
+    // Simpan remoteChapters langsung ke localStorage sehingga materi yang dihapus di DB tidak muncul lagi
+    const finalChapters = remoteChapters.sort((a, b) => a.id - b.id);
     saveStoredChapters(finalChapters);
     return finalChapters;
   } catch (err) {

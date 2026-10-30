@@ -14,6 +14,10 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
   completedChaptersCount,
   totalChaptersCount,
 }) => {
+  const percentage = totalChaptersCount > 0
+    ? Math.min(100, Math.max(0, Math.round((completedChaptersCount / totalChaptersCount) * 100)))
+    : 0;
+
   return (
     <div className="bg-emerald-800 text-white rounded-xl p-6 sm:p-8 mb-8 border border-emerald-900">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -60,17 +64,18 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
 
           <div className="h-2 w-full bg-emerald-950 rounded-full overflow-hidden">
             <div
-              className="h-full bg-emerald-400 rounded-full transition-all duration-300"
-              style={{ width: `${(completedChaptersCount / totalChaptersCount) * 100}%` }}
+              className="h-full bg-emerald-400 rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${percentage}%` }}
             />
           </div>
 
           <div className="flex items-center justify-between text-[11px] text-emerald-200/80 pt-0.5">
-            <span>Standar KKM: 75</span>
-            <span>{Math.round((completedChaptersCount / totalChaptersCount) * 100)}% Selesai</span>
+            <span>{percentage === 100 && totalChaptersCount > 0 ? 'Semua Bab Tuntas 🎉' : 'Status Belajar'}</span>
+            <span className="font-semibold text-white">{percentage}% Selesai</span>
           </div>
         </div>
       </div>
     </div>
   );
 };
+

@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Menu, 
-  CheckCircle, 
-  LogOut 
+  CheckCircle 
 } from 'lucide-react';
 import { Chapter, UserAccount, AssessmentRecord } from '../types';
 import { getStoredUsers } from '../services/authService';
@@ -89,17 +88,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {activeAdminTab === 'nilai' && 'Rekap Nilai'}
               {activeAdminTab === 'users' && 'Manajemen Pengguna'}
             </h1>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onLogout}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Keluar</span>
-            </button>
           </div>
         </header>
 

@@ -23,7 +23,7 @@ export const ReportCardView: React.FC<ReportCardViewProps> = ({
     window.print();
   };
 
-  const completedCount = assessments.filter(a => a.passed).length;
+  const completedCount = chapters.filter(c => assessments.some(a => a.chapterId === c.id && a.passed)).length;
   const avgPosttest = assessments.length > 0
     ? Math.round(assessments.reduce((acc, curr) => acc + curr.posttestScore, 0) / assessments.length)
     : 0;
@@ -105,15 +105,22 @@ export const ReportCardView: React.FC<ReportCardViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {chapters.map((chapter) => {
-                const record = assessments.find(a => a.chapterId === chapter.id);
-                const isPassed = record?.passed || false;
+              {chapters.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-slate-400 text-xs">
+                    Belum ada materi pembelajaran yang terdaftar.
+                  </td>
+                </tr>
+              ) : (
+                chapters.map((chapter) => {
+                  const record = assessments.find(a => a.chapterId === chapter.id);
+                  const isPassed = record?.passed || false;
 
-                return (
-                  <tr key={chapter.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3 px-3 text-center font-bold text-emerald-800">
-                      {chapter.number}
-                    </td>
+                  return (
+                    <tr key={chapter.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-3 text-center font-bold text-emerald-800">
+                        {chapter.number}
+                      </td>
                     <td className="py-3 px-4">
                       <p className="font-semibold text-slate-900">{chapter.title}</p>
                       <p className="text-xs text-slate-500 line-clamp-1">{chapter.subtitle}</p>
@@ -166,7 +173,7 @@ export const ReportCardView: React.FC<ReportCardViewProps> = ({
                     </td>
                   </tr>
                 );
-              })}
+              }))}
             </tbody>
             <tfoot>
               <tr className="bg-slate-50 font-bold border-t-2 border-slate-200 text-xs sm:text-sm">

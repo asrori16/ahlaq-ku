@@ -287,9 +287,18 @@ export const deleteStudentNote = async (noteId: string): Promise<boolean> => {
 
 // ===================== PROGRESS =====================
 
-export const getStudentProgress = (chapterId: number): StudentProgress => {
+const getProgressStorageKey = (chapterId: number, studentName?: string) => {
+  if (studentName) {
+    const safe = studentName.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+    return `${STORAGE_KEYS.PROGRESS}_${safe}_${chapterId}`;
+  }
+  return `${STORAGE_KEYS.PROGRESS}_${chapterId}`;
+};
+
+export const getStudentProgress = (chapterId: number, studentName?: string): StudentProgress => {
   try {
-    const raw = localStorage.getItem(`${STORAGE_KEYS.PROGRESS}_${chapterId}`);
+    const key = getProgressStorageKey(chapterId, studentName);
+    const raw = localStorage.getItem(key) || (studentName ? localStorage.getItem(`${STORAGE_KEYS.PROGRESS}_${chapterId}`) : null);
     if (raw) {
       return JSON.parse(raw);
     }
@@ -308,13 +317,89 @@ export const getStudentProgress = (chapterId: number): StudentProgress => {
   };
 };
 
-export const updateStudentProgress = (chapterId: number, partial: Partial<StudentProgress>) => {
-  const current = getStudentProgress(chapterId);
+export const updateStudentProgress = async (
+  chapterId: number,
+  partial: Partial<StudentProgress>,
+  studentName?: string
+): Promise<StudentProgress> => {
+  const current = getStudentProgress(chapterId, studentName);
   const updated: StudentProgress = { ...current, ...partial };
+
+  // Save to localStorage
   try {
+    const key = getProgressStorageKey(chapterId, studentName);
+    localStorage.setItem(key, JSON.stringify(updated));
+    // Also save generic fallback
     localStorage.setItem(`${STORAGE_KEYS.PROGRESS}_${chapterId}`, JSON.stringify(updated));
   } catch (e) {
-    console.warn('Error saving progress', e);
+    console.warn('Error saving progress to localStorage', e);
   }
+
+  // Sync to Supabase student_progress table
+  if (studentName) {
+    try {
+      await supabase.from('student_progress').upsert(
+        {
+          student_name: studentName,
+          chapter_id: chapterId,
+          video_watched: updated.videoWatched,
+          video_watch_percentage: updated.videoWatchPercentage || (updated.videoWatched ? 100 : 0),
+          pretest_completed: updated.pretestCompleted,
+          pretest_score: updated.pretestScore ?? null,
+          posttest_completed: updated.posttestCompleted,
+          posttest_score: updated.posttestScore ?? null,
+          ebook_read: updated.ebookRead,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'student_name,chapter_id' }
+      );
+    } catch (e) {
+      console.warn('Error syncing student progress to Supabase', e);
+    }
+  }
+
   return updated;
 };
+
+export const fetchAllStudentProgress = async (
+  studentName: string
+): Promise<Record<number, StudentProgress>> => {
+  const progressMap: Record<number, StudentProgress> = {};
+
+  try {
+    const { data, error } = await supabase
+      .from('student_progress')
+      .select('*')
+      .eq('student_name', studentName);
+
+    if (!error && data && data.length > 0) {
+      data.forEach((row) => {
+        const item: StudentProgress = {
+          chapterId: row.chapter_id,
+          videoWatched: Boolean(row.video_watched),
+          videoWatchPercentage: row.video_watch_percentage || (row.video_watched ? 100 : 0),
+          pretestCompleted: Boolean(row.pretest_completed),
+          pretestScore: row.pretest_score !== null ? row.pretest_score : undefined,
+          posttestCompleted: Boolean(row.posttest_completed),
+          posttestScore: row.posttest_score !== null ? row.posttest_score : undefined,
+          ebookRead: Boolean(row.ebook_read),
+          notesCount: 0,
+        };
+        progressMap[row.chapter_id] = item;
+
+        // Cache locally for offline access
+        try {
+          const key = getProgressStorageKey(row.chapter_id, studentName);
+          localStorage.setItem(key, JSON.stringify(item));
+        } catch {
+          // ignore
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('Fallback to local student progress', e);
+  }
+
+  return progressMap;
+};
+

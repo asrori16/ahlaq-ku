@@ -7,7 +7,8 @@ import {
   fetchAssessmentResults, 
   saveAssessmentResult,
   getStudentProgress,
-  updateStudentProgress
+  updateStudentProgress,
+  fetchAllStudentProgress
 } from './services/supabaseService';
 import { getCurrentUser, logoutUser } from './services/authService';
 import { getStoredChapters, syncChaptersFromSupabase } from './services/chapterService';
@@ -25,13 +26,15 @@ import { CertificateModal } from './components/CertificateModal';
 import { StudentProfileModal } from './components/StudentProfileModal';
 import { ReportCardView } from './components/ReportCardView';
 
+import { BookOpen } from 'lucide-react';
+
 export default function App() {
   // User Authentication
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(getCurrentUser());
 
   // Dynamic Chapters from chapterService
   const [chapters, setChapters] = useState<Chapter[]>(getStoredChapters());
-  const [selectedChapter, setSelectedChapter] = useState<Chapter>(chapters[0] || CHAPTERS_DATA[0]);
+  const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(chapters[0] || null);
   const [activeTab, setActiveTab] = useState<'chapters' | 'ebook' | 'video' | 'assessment' | 'rapor'>('chapters');
   const [semesterFilter, setSemesterFilter] = useState<'all' | '1' | '2'>('all');
 
@@ -73,15 +76,18 @@ export default function App() {
 
     // Sync remote chapters from Supabase (including videos & media uploaded by admin)
     const syncedChapters = await syncChaptersFromSupabase();
+    setChapters(syncedChapters);
     if (syncedChapters && syncedChapters.length > 0) {
-      setChapters(syncedChapters);
-      setSelectedChapter((prev) => syncedChapters.find((c) => c.id === prev.id) || syncedChapters[0]);
+      setSelectedChapter((prev) => (prev ? syncedChapters.find((c) => c.id === prev.id) || syncedChapters[0] : syncedChapters[0]));
+    } else {
+      setSelectedChapter(null);
     }
 
-    // Load progress for each chapter
+    // Load progress for each chapter from Supabase and local cache
+    const remoteProgress = await fetchAllStudentProgress(student.name);
     const pMap: Record<number, StudentProgress> = {};
-    (syncedChapters || chapters).forEach((c) => {
-      pMap[c.id] = getStudentProgress(c.id);
+    (syncedChapters || []).forEach((c) => {
+      pMap[c.id] = remoteProgress[c.id] || getStudentProgress(c.id, student.name);
     });
     setProgressMap(pMap);
   };
@@ -139,16 +145,16 @@ export default function App() {
 
     // Update Progress
     if (type === 'pretest') {
-      updateStudentProgress(chapter.id, { pretestCompleted: true, pretestScore: calculatedScore });
+      updateStudentProgress(chapter.id, { pretestCompleted: true, pretestScore: calculatedScore }, student.name);
       setProgressMap(prev => ({
         ...prev,
-        [chapter.id]: { ...prev[chapter.id], pretestCompleted: true, pretestScore: calculatedScore },
+        [chapter.id]: { ...(prev[chapter.id] || getStudentProgress(chapter.id, student.name)), pretestCompleted: true, pretestScore: calculatedScore },
       }));
     } else {
-      updateStudentProgress(chapter.id, { posttestCompleted: true, posttestScore: calculatedScore });
+      updateStudentProgress(chapter.id, { posttestCompleted: true, posttestScore: calculatedScore }, student.name);
       setProgressMap(prev => ({
         ...prev,
-        [chapter.id]: { ...prev[chapter.id], posttestCompleted: true, posttestScore: calculatedScore },
+        [chapter.id]: { ...(prev[chapter.id] || getStudentProgress(chapter.id, student.name)), posttestCompleted: true, posttestScore: calculatedScore },
       }));
     }
 
@@ -167,20 +173,30 @@ export default function App() {
 
   // Video completion callback
   const handleVideoCompleted = (chapterId: number) => {
-    updateStudentProgress(chapterId, { videoWatched: true, videoWatchPercentage: 100 });
+    updateStudentProgress(chapterId, { videoWatched: true, videoWatchPercentage: 100 }, student.name);
     setProgressMap(prev => ({
       ...prev,
-      [chapterId]: { ...prev[chapterId], videoWatched: true, videoWatchPercentage: 100 },
+      [chapterId]: { ...(prev[chapterId] || getStudentProgress(chapterId, student.name)), videoWatched: true, videoWatchPercentage: 100 },
+    }));
+  };
+
+  // Video completion toggle callback (for YouTube or manual toggle)
+  const handleToggleVideoWatched = (chapterId: number) => {
+    const isWatched = progressMap[chapterId]?.videoWatched || false;
+    updateStudentProgress(chapterId, { videoWatched: !isWatched, videoWatchPercentage: !isWatched ? 100 : 0 }, student.name);
+    setProgressMap(prev => ({
+      ...prev,
+      [chapterId]: { ...(prev[chapterId] || getStudentProgress(chapterId, student.name)), videoWatched: !isWatched, videoWatchPercentage: !isWatched ? 100 : 0 },
     }));
   };
 
   // E-book read callback
   const handleMarkEbookRead = (chapterId: number) => {
     const isCurrentlyRead = progressMap[chapterId]?.ebookRead || false;
-    updateStudentProgress(chapterId, { ebookRead: !isCurrentlyRead });
+    updateStudentProgress(chapterId, { ebookRead: !isCurrentlyRead }, student.name);
     setProgressMap(prev => ({
       ...prev,
-      [chapterId]: { ...prev[chapterId], ebookRead: !isCurrentlyRead },
+      [chapterId]: { ...(prev[chapterId] || getStudentProgress(chapterId, student.name)), ebookRead: !isCurrentlyRead },
     }));
   };
 
@@ -190,13 +206,17 @@ export default function App() {
     return c.semester === Number(semesterFilter);
   });
 
-  const completedCount = assessments.filter(a => a.passed).length;
+  const completedCount = chapters.filter(c => assessments.some(a => a.chapterId === c.id && a.passed)).length;
 
   const handleRefreshChapters = () => {
     const updated = getStoredChapters();
     setChapters(updated);
-    if (!updated.some(c => c.id === selectedChapter?.id) && updated.length > 0) {
-      setSelectedChapter(updated[0]);
+    if (updated.length > 0) {
+      if (!selectedChapter || !updated.some(c => c.id === selectedChapter.id)) {
+        setSelectedChapter(updated[0]);
+      }
+    } else {
+      setSelectedChapter(null);
     }
   };
 
@@ -270,26 +290,52 @@ export default function App() {
           />
         ) : activeTab === 'ebook' ? (
           /* Interactive E-Book Viewer Mode */
-          <EbookViewer
-            chapters={chapters}
-            currentChapter={selectedChapter}
-            onSelectChapter={(ch) => setSelectedChapter(ch)}
-            onOpenPdf={(ch) => setPdfChapter(ch)}
-            onBack={() => setActiveTab('chapters')}
-            onMarkAsRead={handleMarkEbookRead}
-            isRead={progressMap[selectedChapter.id]?.ebookRead || false}
-          />
+          selectedChapter ? (
+            <EbookViewer
+              chapters={chapters}
+              currentChapter={selectedChapter}
+              onSelectChapter={(ch) => setSelectedChapter(ch)}
+              onOpenPdf={(ch) => setPdfChapter(ch)}
+              onBack={() => setActiveTab('chapters')}
+              onMarkAsRead={handleMarkEbookRead}
+              isRead={progressMap[selectedChapter.id]?.ebookRead || false}
+            />
+          ) : (
+            <div className="max-w-xl mx-auto py-16 text-center px-4">
+              <p className="text-slate-500 mb-4 text-xs sm:text-sm">Tidak ada materi e-book yang tersedia.</p>
+              <button
+                onClick={() => setActiveTab('chapters')}
+                className="px-4 py-2 bg-emerald-800 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors cursor-pointer"
+              >
+                Kembali ke Daftar Bab
+              </button>
+            </div>
+          )
         ) : activeTab === 'video' ? (
           /* Interactive Video Tutorial Mode */
-          <InteractiveVideoPlayer
-            chapter={selectedChapter}
-            studentName={student.name}
-            onVideoCompleted={handleVideoCompleted}
-            onStartPosttest={(ch) => {
-              setActiveQuiz({ chapter: ch, type: 'posttest' });
-            }}
-            onBack={() => setActiveTab('chapters')}
-          />
+          selectedChapter ? (
+            <InteractiveVideoPlayer
+              chapter={selectedChapter}
+              studentName={student.name}
+              isVideoWatched={progressMap[selectedChapter.id]?.videoWatched || false}
+              onToggleVideoWatched={handleToggleVideoWatched}
+              onVideoCompleted={handleVideoCompleted}
+              onStartPosttest={(ch) => {
+                setActiveQuiz({ chapter: ch, type: 'posttest' });
+              }}
+              onBack={() => setActiveTab('chapters')}
+            />
+          ) : (
+            <div className="max-w-xl mx-auto py-16 text-center px-4">
+              <p className="text-slate-500 mb-4 text-xs sm:text-sm">Tidak ada video pembelajaran yang tersedia.</p>
+              <button
+                onClick={() => setActiveTab('chapters')}
+                className="px-4 py-2 bg-emerald-800 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors cursor-pointer"
+              >
+                Kembali ke Daftar Bab
+              </button>
+            </div>
+          )
         ) : activeTab === 'rapor' ? (
           /* Rapor & Sertifikat View */
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -311,12 +357,16 @@ export default function App() {
             {/* Hero Banner */}
             <HeroBanner
               onStartLearning={() => {
-                setSelectedChapter(chapters[0]);
-                setActiveTab('video');
+                if (chapters.length > 0) {
+                  setSelectedChapter(chapters[0]);
+                  setActiveTab('video');
+                }
               }}
               onExploreEbook={() => {
-                setSelectedChapter(chapters[0]);
-                setActiveTab('ebook');
+                if (chapters.length > 0) {
+                  setSelectedChapter(chapters[0]);
+                  setActiveTab('ebook');
+                }
               }}
               completedChaptersCount={completedCount}
               totalChaptersCount={chapters.length}
@@ -368,45 +418,59 @@ export default function App() {
               </div>
             </div>
 
-            {/* Grid of Chapter Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredChapters.map((chapter) => (
-                <ChapterCard
-                  key={chapter.id}
-                  chapter={chapter}
-                  progress={progressMap[chapter.id] || {
-                    chapterId: chapter.id,
-                    videoWatched: false,
-                    videoWatchPercentage: 0,
-                    pretestCompleted: false,
-                    posttestCompleted: false,
-                    ebookRead: false,
-                    notesCount: 0,
-                  }}
-                  assessmentRecord={assessments.find(a => a.chapterId === chapter.id)}
-                  onOpenEbook={(ch) => {
-                    setSelectedChapter(ch);
-                    setActiveTab('ebook');
-                  }}
-                  onOpenPdf={(ch) => {
-                    setPdfChapter(ch);
-                  }}
-                  onOpenVideo={(ch) => {
-                    setSelectedChapter(ch);
-                    setActiveTab('video');
-                  }}
-                  onStartPretest={(ch) => {
-                    setActiveQuiz({ chapter: ch, type: 'pretest' });
-                  }}
-                  onStartPosttest={(ch) => {
-                    setActiveQuiz({ chapter: ch, type: 'posttest' });
-                  }}
-                  onViewCertificate={(ch, rec) => {
-                    setActiveCertificate({ chapter: ch, record: rec });
-                  }}
-                />
-              ))}
-            </div>
+            {/* Grid of Chapter Cards or Empty State */}
+            {filteredChapters.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredChapters.map((chapter) => (
+                  <ChapterCard
+                    key={chapter.id}
+                    chapter={chapter}
+                    progress={progressMap[chapter.id] || {
+                      chapterId: chapter.id,
+                      videoWatched: false,
+                      videoWatchPercentage: 0,
+                      pretestCompleted: false,
+                      posttestCompleted: false,
+                      ebookRead: false,
+                      notesCount: 0,
+                    }}
+                    assessmentRecord={assessments.find(a => a.chapterId === chapter.id)}
+                    onOpenEbook={(ch) => {
+                      setSelectedChapter(ch);
+                      setActiveTab('ebook');
+                    }}
+                    onOpenPdf={(ch) => {
+                      setPdfChapter(ch);
+                    }}
+                    onOpenVideo={(ch) => {
+                      setSelectedChapter(ch);
+                      setActiveTab('video');
+                    }}
+                    onStartPretest={(ch) => {
+                      setActiveQuiz({ chapter: ch, type: 'pretest' });
+                    }}
+                    onStartPosttest={(ch) => {
+                      setActiveQuiz({ chapter: ch, type: 'posttest' });
+                    }}
+                    onViewCertificate={(ch, rec) => {
+                      setActiveCertificate({ chapter: ch, record: rec });
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+                <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3 text-emerald-700">
+                  <BookOpen className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-slate-800 mb-1">
+                  Belum Ada Materi Pembelajaran
+                </h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Materi pembelajaran belum tersedia atau telah dihapus oleh Admin Guru.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </main>
