@@ -242,9 +242,9 @@ export const EbookViewer: React.FC<EbookViewerProps> = ({
           {/* Header of the page */}
           <div className="flex items-center justify-between border-b border-current/10 pb-4 mb-8 text-xs opacity-75">
             <div className="flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-emerald-600" />
+              <img src="/logo-icon.png" alt="Logo Akhlakku" className="w-4 h-4 rounded object-contain" />
               <span className="font-semibold uppercase tracking-wider">
-                AKHLAQ KU · Bab {currentChapter.number}
+                Akhlakku · Bab {currentChapter.number}
               </span>
             </div>
             <div>

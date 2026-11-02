@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, User, Lock, ShieldCheck, GraduationCap, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { User, Lock, ShieldCheck, GraduationCap, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { loginUser, addStudentUser } from '../services/authService';
 import { UserAccount, UserRole } from '../types';
 
@@ -93,10 +93,14 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         {/* Header Branding */}
         <div className="bg-emerald-800 text-white p-6 sm:p-8 text-center">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/10 text-white mb-3 backdrop-blur-xs border border-white/20">
-            <BookOpen className="w-7 h-7 text-emerald-200" />
+          <div className="inline-flex items-center justify-center mb-3">
+            <img 
+              src="/logo-icon.png" 
+              alt="Logo Akhlakku" 
+              className="w-16 h-16 rounded-2xl shadow-lg border-2 border-white/20 object-contain p-1 bg-emerald-900/40" 
+            />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">AKHLAQ KU</h1>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Akhlakku</h1>
           <p className="text-emerald-100 text-xs sm:text-sm mt-1 max-w-xs mx-auto">
             Pembelajaran PAI & Budi Pekerti Berbasis Modul Interaktif
           </p>

@@ -83,11 +83,13 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         {/* Header Brand */}
         <div className="p-4 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold">
-              <BookOpen className="w-4 h-4" />
-            </div>
+            <img
+              src="/logo-icon.png"
+              alt="Logo Akhlakku"
+              className="w-8 h-8 rounded-lg object-contain shadow-xs border border-white/10"
+            />
             <div>
-              <span className="text-sm font-bold text-white tracking-tight">AKHLAQ KU</span>
+              <span className="text-sm font-bold text-white tracking-tight">Akhlakku</span>
               <p className="text-[10px] text-slate-400">Panel Admin</p>
             </div>
           </div>

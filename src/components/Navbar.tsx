@@ -67,14 +67,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setIsMobileMenuOpen(false);
                 }}
                 className="flex items-center gap-2.5 text-left group cursor-pointer"
-                title="Beranda AKHLAQ KU"
+                title="Beranda Akhlakku"
               >
-                <div className="w-8 h-8 rounded-lg bg-emerald-800 text-white flex items-center justify-center font-bold text-sm">
-                  <BookOpen className="w-4 h-4" />
-                </div>
+                <img
+                  src="/logo-icon.png"
+                  alt="Logo Akhlakku"
+                  className="w-9 h-9 rounded-lg object-contain border border-emerald-900/10 shadow-xs"
+                />
                 <div>
                   <span className="text-base sm:text-lg font-bold tracking-tight text-slate-900 group-hover:text-emerald-900 transition-colors">
-                    AKHLAQ KU
+                    Akhlakku
                   </span>
                   <p className="text-[11px] text-slate-500 hidden sm:block">
                     Kelas 11 SMA

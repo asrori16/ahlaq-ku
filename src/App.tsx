@@ -478,7 +478,10 @@ export default function App() {
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-5 mt-12 no-print text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-slate-600 font-medium">AKHLAQ KU · Kelas 11 SMA</p>
+          <div className="flex items-center gap-2">
+            <img src="/logo-icon.png" alt="Logo Akhlakku" className="w-5 h-5 rounded object-contain" />
+            <p className="text-slate-600 font-medium">Akhlakku · Kelas 11 SMA</p>
+          </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setActiveTab('rapor')}

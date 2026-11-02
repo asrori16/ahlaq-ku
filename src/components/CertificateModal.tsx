@@ -1,6 +1,6 @@
 import React from 'react';
 import { Chapter, AssessmentRecord } from '../types';
-import { Award, Printer, X, CheckCircle, ShieldCheck } from 'lucide-react';
+import { Award, Printer, X, CheckCircle } from 'lucide-react';
 
 interface CertificateModalProps {
   chapter: Chapter;
@@ -19,7 +19,7 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({
     window.print();
   };
 
-  const certificateNumber = `AKHLAQ-XI/2026/${String(chapter.id).padStart(2, '0')}/${record.id.slice(-6).toUpperCase()}`;
+  const certificateNumber = `AKHLAKKU-XI/2026/${String(chapter.id).padStart(2, '0')}/${record.id.slice(-6).toUpperCase()}`;
   const completionDate = new Date(record.timestamp).toLocaleDateString('id-ID', {
     day: 'numeric',
     month: 'long',
@@ -119,8 +119,12 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({
           <div className="mt-12 pt-6 grid grid-cols-3 gap-4 items-end text-center text-xs text-slate-700">
             {/* Verification Seal */}
             <div className="flex flex-col items-center justify-center space-y-1">
-              <div className="w-16 h-16 rounded-full border-2 border-emerald-700 flex items-center justify-center bg-emerald-50 text-emerald-800 shadow-xs">
-                <ShieldCheck className="w-8 h-8" />
+              <div className="w-16 h-16 rounded-full border-2 border-emerald-700 flex items-center justify-center bg-emerald-50 text-emerald-800 shadow-xs p-2 overflow-hidden">
+                <img
+                  src="/logo-icon-emerald.png"
+                  alt="Stempel Akhlakku"
+                  className="w-full h-full object-contain"
+                />
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900">
                 Terverifikasi Resmi

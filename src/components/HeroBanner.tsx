@@ -27,9 +27,16 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
             Kelas 11 SMA · Kurikulum Merdeka
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-            AKHLAQ KU
-          </h1>
+          <div className="flex items-center gap-3">
+            <img
+              src="/logo-icon.png"
+              alt="Logo Akhlakku"
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl shadow-md border border-white/20 object-contain shrink-0"
+            />
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+              Akhlakku
+            </h1>
+          </div>
 
           <p className="text-sm text-emerald-100/90 leading-relaxed">
             Pembelajaran mandiri akhlak dan budi pekerti melalui modul terstruktur, video materi, dan uji pemahaman.
